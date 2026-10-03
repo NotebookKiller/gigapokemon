@@ -1,0 +1,27 @@
+=== ЗАПУСКАТЬ В U-BOOT (приглашение "=>", serial 115200) ===
+
+Как попасть сюда: при загрузке в меню bootmgr нажать ЛЮБУЮ клавишу (не Enter),
+затем выбрать пункт "c" (Command prompt).
+
+Ручная загрузка образа 1 (rootfs mmcblk0p5) сразу в root-bash без пароля,
+в обход сломанного "image settings". Kernel/fdt берём из FAT-раздела mmc 0:2.
+ВАЖНО: fdt грузим в ВЫСОКИЙ адрес (0x2000000) — при низком (0xc0000) ядро его
+затирает при распаковке -> "ERROR: image is not a fdt".
+
+  fatload mmc 0:2 0x1000000 /vmlinuz
+  fatload mmc 0:2 0x2000000 /fdt
+  setenv bootargs 'root=/dev/mmcblk0p5 ro rootdelay=8 img_id=1 console=ttyS0,115200 init=/bin/bash rw'
+  bootm 0x1000000 - 0x2000000
+
+Если ядро паникует — попробовать /vmlinuz-smp вместо /vmlinuz.
+
+После загрузки (приглашение bash-3.2#) первым делом:
+  mount -o remount,rw /
+
+--- Полезные команды диагностики карты в u-boot (старый синтаксис 2010.06) ---
+  mmc rescan 0
+  mmc read 0 0x2000000 0 1        # прочитать сектор 0 (MBR) в 0x2000000
+  md 0x2000000 0x80              # смотреть: в конце сектора должно быть ...55aa
+  fatls mmc 0:2                  # содержимое FAT-раздела (ядро/fdt)
+Синтаксис: mmc read <dev> <addr> <blk> <cnt> ; "mmc dev" в этой версии НЕТ.
+Признак несовместимой карты: "0 blocks read: ERROR" или пустой mmc info.

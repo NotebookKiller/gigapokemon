@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^2.1.287",
+    "claude": "^0.1.2",
+    "nodejs": "^0.0.0"
+  }
+}

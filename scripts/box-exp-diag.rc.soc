@@ -1,0 +1,32 @@
+# === ДИАГНОСТИЧЕСКИЙ сценарий для bcm.user (кладётся на коробку как /var/bcm/rc.soc) ===
+# БЕЗОПАСНО: НЕ делает init mmu / init bcm (именно они виснут на незалоченном LCPLL).
+# Цель: понять состояние LCPLL и достучаться до регистров PLL.
+# bcm.user грузит этот файл сам при attach. Заканчивается exit -> процесс выходит.
+
+echo "=========== CONFIG SHOW ==========="
+config show
+
+echo "=========== VERSION ==========="
+version
+
+echo "=========== PLL-регистры СРАЗУ после attach (как оставил netdevd) ==========="
+getreg CMIC_XGXS0_PLL_CONTROL_1
+getreg CMIC_XGXS0_PLL_CONTROL_2
+getreg CMIC_XGXS0_PLL_STATUS
+getreg CMIC_XGXS1_PLL_CONTROL_2
+getreg CMIC_XGXS2_PLL_CONTROL_2
+getreg CMIC_XGXS3_PLL_CONTROL_2
+
+echo "=========== init soc (завершается; печатает LCPLL warnings) ==========="
+init soc
+
+echo "=========== PLL-регистры ПОСЛЕ init soc ==========="
+getreg CMIC_XGXS0_PLL_CONTROL_2
+getreg CMIC_XGXS0_PLL_STATUS
+
+echo "=========== соседние CMIC-регистры для sanity (чтобы понять, живой ли SBUS) ==========="
+getreg CMIC_SBUS_RING_MAP_0_7
+getreg CMIC_XGXS0_PLL_CONTROL_4
+
+echo "=========== DONE — выходим, НЕ трогаем mmu/bcm ==========="
+exit
