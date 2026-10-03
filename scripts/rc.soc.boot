@@ -1,5 +1,9 @@
 set rcerror=false
 init soc
 init misc
+init mmu
 init bcm
+port xe enable=true stp=forward an=on
+linkscan 250000
+port xe linkscan=on
 echo "BOX_INIT_DONE"
