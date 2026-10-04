@@ -60,6 +60,20 @@ echo "[chip] kill netdevd ($(pidof netdevd))"
 kill $(pidof netdevd) 2>/dev/null
 sleep 3
 
+# 2b) ПЕРЕЗАГРУЗКА BDE-модулей -> РЕАЛЬНЫЙ MSI-IRQ для bcm.user --------------
+#    Ключ к стабильному init (2026-10-04): без этого bcm.user работал в polled_irq_mode
+#    (ipoll опрашивает CMIC), завершения DMA ловились с гонкой -> init ~1/2-1/3 ТИХО ВИСНЕТ.
+#    Перезагрузка BDE (как load_bcm.sh) освобождает IRQ 23; config БЕЗ polled_irq_mode ->
+#    soc_cm_interrupt_connect берёт реальный IRQ -> завершения DMA мгновенно -> init ~16с,
+#    детерминированно. (config.bcm канонический УЖЕ без polled_irq_mode.)
+echo "[bde] перезагрузка BDE-модулей (реальный IRQ)"
+for s in linux-bcm-knet linux-uk-proxy linux-user-bde linux-kernel-bde; do /etc/rc.d/init.d/$s stop >/dev/null 2>&1; done
+sleep 2
+for s in linux-kernel-bde linux-user-bde linux-uk-proxy linux-bcm-knet; do /etc/rc.d/init.d/$s start >/dev/null 2>&1; done
+sleep 3
+echo "[bde] IRQ23: $(awk '/^ *23:/{print $2\" ints\"}' /proc/interrupts)  user-bde: $([ -e /dev/linux-user-bde ] && echo ok || echo НЕТ)"
+if [ ! -e /dev/linux-user-bde ]; then echo "[abort] нет /dev/linux-user-bde после reload (pm заморож., reboot -f)"; exit 1; fi
+
 # 3) Поднять bcm.user демоном под PTY (script -f) со stdin из FIFO ----------
 #    PTY обязателен: со stdout в файл glibc буферизует лог блоками -> вывод не виден,
 #    позитивный маркер BOX_INIT_DONE не прочитать вовремя. script -f даёт построчно.

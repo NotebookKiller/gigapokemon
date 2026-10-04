@@ -1,6 +1,5 @@
 os=unix
 xgxs_lcpll_xtal_refclk=1
-polled_irq_mode=1
 portmap_1=1:10
 portmap_2=2:10
 portmap_3=3:10
