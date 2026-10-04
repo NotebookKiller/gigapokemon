@@ -123,4 +123,13 @@ fi
 # Успех: bcm.user жив и держит чип, FIFO открыт держателем. ------------------
 echo "[DONE] BOX_INIT_DONE получен -> наш L2-свитч активен. bcm.user pid=$(pidof bcm.user)."
 echo "       диаг-команды:   echo 'ps' > $FIFO   (вывод в $BCMLOG)"
+
+# Панельные LED: грузим board-программу netdevd (devmem) + включаем auto-обновление от linkscan.
+# (Микро заводится, порты 1-16 ложатся верно; 17-48 — перемешка из-за portmap-перенумерации,
+#  REMAP ещё не зашит — косметика, см. [[gigamon-ta100-config-db]].)
+if [ -x "$BCM/box-leds.sh" ]; then
+  echo "[led] инициализация панельных LED (box-leds.sh + led auto)"
+  sh "$BCM/box-leds.sh" >/dev/null 2>&1
+  echo "led 0 auto on" > "$FIFO"; echo "led 1 auto on" > "$FIFO"
+fi
 exit 0
