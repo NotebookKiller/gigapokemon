@@ -53,8 +53,19 @@ echo "[ok] /dev/linux-user-bde есть; жду стабилизации сер�
 sleep 15
 
 # 2) Заморозить pm и освободить чип -----------------------------------------
+# КРИТИЧНО (урок 2026-10-04): дождаться, пока pm ПОДНИМЕТ sshd (слушает :22), иначе
+# заморозка pm оставит коробку БЕЗ SSH (sshd — ребёнок pm, замороженный pm его не стартует;
+# однажды так потеряли доступ, спасал только serial). Порт 22 = 0x0016, LISTEN = 0A в /proc/net/tcp.
+j=0
+while ! awk '$2 ~ /:0016$/ && $4=="0A"{f=1} END{exit !f}' /proc/net/tcp 2>/dev/null && [ $j -lt 90 ]; do sleep 2; j=$((j+1)); done
+if awk '$2 ~ /:0016$/ && $4=="0A"{f=1} END{exit !f}' /proc/net/tcp 2>/dev/null; then
+  echo "[sshd] слушает :22 (ждал ${j}×2s) — замораживать pm безопасно"
+else
+  echo "[abort] sshd не поднялся за 180s — НЕ морожу pm (иначе потеряем SSH); остаёмся на штатном"
+  exit 0
+fi
 PM=$(pidof pm)
-echo "[freeze] kill -STOP pm ($PM)  — дети (sshd и пр.) продолжают работать"
+echo "[freeze] kill -STOP pm ($PM)  — sshd уже слушает, переживёт заморозку"
 kill -STOP $PM 2>/dev/null
 echo "[chip] kill netdevd ($(pidof netdevd))"
 kill $(pidof netdevd) 2>/dev/null
