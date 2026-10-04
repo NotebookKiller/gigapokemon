@@ -1,0 +1,15 @@
+set rcerror=false
+init soc
+init misc
+init mmu
+init bcm
+port xe enable=true stp=forward an=on
+# --- Авто-детект скорости по SFP EEPROM (замена хардкод-форса port xe3,xe18 sp=10000) ---
+# SFPScan (наша команда, собрана в bcm.user): читает EEPROM модуля (I2C 0x50) через
+# I2C-мастер PHY 84740/84754 и ставит скорость: 10G для 10GbE/DAC, 1G для 1000BASE.
+# Порты, уже имеющие нужную скорость, НЕ трогает (линк не дёргается). 'dump' печатает
+# ключевые байты SFF-8472 (id/b3/b6/b8/b12) в лог для диагностики.
+SFPScan dump
+linkscan 250000
+port xe linkscan=on
+echo "BOX_INIT_DONE"
