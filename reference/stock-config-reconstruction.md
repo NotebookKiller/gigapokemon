@@ -116,3 +116,46 @@ byte = LS_LED_DATA_OFFSET_A0 + phy_port - skip_count;
 skip_count=0 для чипов без дырок → поведение не меняется (безопасно). Патч: patches/sfpscan.patch,
 бинарь: bins/bcm.user.sfpscan-ledfix.gz. Деплой — когда вернётся SSH (40МБ по serial не зальёшь);
 проверка после деплоя: воткнуть в cage 17/21 → диод должен совпасть с номером разъёма.
+
+## Стоковый soc-property set + init (реверс netdevd, 2026-10-05, субагент)
+Config-apply @vaddr 0x103f7f90 → djb2-setter set_cfg(name,value) @0x105ad43c. netdevd = sdk-xgs-robo-6.3.2,
+собран 2020-05-20. ВАЖНАЯ ПОПРАВКА: 56840 = **Trident+** → MMU-путь `ndd_bcm_mmu_config_trident_plus`
+(0x1090f60), НЕ _trident2.
+
+### Дельты стока vs дефолтов SDK (литерал-подтверждённые)
+```
+bcm_stat_interval=3000000     # SDK default 1000000; у нас 0 (выкл)
+bcm_stat_jumbo=16348          # SDK default 1518 — ДЖАМБО-кадры
+bcm_stat_flags=1
+buf.mqueue.pool_scale=0.5     # MMU
+xgxs_lcpll_xtal_refclk=1      # SDK default 0 — у нас ЕСТЬ ✓ (LCPLL-фикс)
+table_dma_enable=1            # у нас ЕСТЬ ✓
+tslam_dma_enable=1            # у нас ЕСТЬ ✓
+miim_intr_enable=1            # у нас 0 (!) — меняли под real-IRQ
+bcm56822_8x16=1
+higig2_hdr_mode=1
+module_64ports=1              # 64-портовый режим — у нас НЕТ
+```
+Инференс (в stripped-бинаре значение не добивается чисто — сверить live `config show`/snapdb):
+`polled_irq_mode=0` (у нас убран ✓), `schan_intr_enable=0` (у нас ✓), `port_init_autoneg_xe=0`,
+`parity_enable=0`, `bcm_num_cos=4`.
+generic `pbmp_xport_xe=0x1fffffffffffffffe` (ставится, ПОТОМ ghal_port_params_mode_2=0x02223fffffffffffe
+под карту). port_phy_addr_1..52, phy_84754_1..48, phy_84740_49..64, portmap_1..20 — литералы (см. выше).
+Per-port runtime (sprintf): serdes_firmware_mode_%d, phy_pcs_repeater_%d, serdes_fiber_pref_<port>,
+phy_sgmii_autoneg_<port>. Полный spn_-каталог вкомпилен (phy_an_c73, dport_map_*, buf.<class>.<field>).
+
+### Init-последовательность стока (реконструкция)
+1. PCI attach + system_init + launch diag shell; 2. probe (unit/port); 3. применить soc-props (выше);
+4. l2switch_init_unit part1/part2, init_bcm_ports; 5. per-xe PHY: `bcm phy xe%d 9 1 0` + `bcm phy ... srl=1`;
+6. цикл `bcm modreg RDBGC1..7_SELECT BITMAP=0x%x` (debug-счётчики); 7. `ndd_bcm_mmu_config_trident_plus`;
+8. linkscan (pbmp+interval); 9. xe_leds_set/ge_leds_set; 10. QoS/rate-limit. Каждая: лог «BCM command # N».
+netdevd также ссылается на литерал `rc.soc` (0x10d87b8) — может и файл подхватить.
+
+### MMU / вентиляторы
+MMU: кроме `buf.mqueue.pool_scale=0.5` всё вычисляется в рантайме через buf.<class>.<field> внутри
+mmu_config; буфер-пороги ещё и рулятся action'ом `/gv/internal/actions/netdevd/buffer_threshold`.
+Хард-кодов cell/threshold из функции не достали (stripped). Вентиляторы: netdevd их НЕ контролирует —
+только читает температуру и инвентарь fantray; PWM MAX6650 — отдельный демон (совпадает с нашим воркэраундом).
+
+ПРИМЕНЕНИЕ: НЕ менять рабочий config.bcm вслепую (наш init тонко настроен под real-IRQ: miim_intr_enable=0,
+bcm_stat_interval=0 — осознанно). Кандидаты на пробу (на железе, по одной) — scripts/config.bcm.stock-deltas.

@@ -1,0 +1,30 @@
+# КАНДИДАТ-ДЕЛЬТЫ из стокового netdevd (реверс 2026-10-05). НЕ применять целиком вслепую!
+# Наш рабочий scripts/config.bcm тонко настроен под real-IRQ. Это список того, что СТОК
+# ставит сверх дефолтов SDK — пробовать ПО ОДНОЙ на железе (нужен SSH), сверяя init и линки.
+# Детали/доверие — reference/stock-config-reconstruction.md.
+
+# --- УЖЕ ЕСТЬ в нашем config.bcm (не трогать) ---
+# xgxs_lcpll_xtal_refclk=1
+# table_dma_enable=1
+# tslam_dma_enable=1
+# schan_intr_enable=0   (инференс стока совпал)
+# polled_irq_mode убран (у стока =0)
+
+# --- НИЗКИЙ РИСК, полезно для «нормального свитча» (пробовать первыми) ---
+bcm_stat_jumbo=16348      # джамбо-кадры (сток; дефолт 1518)
+bcm_stat_flags=1
+bcm_stat_interval=3000000 # счётчики раз в 3с (у нас 0=выкл; включит counter-LED активность тоже)
+buf.mqueue.pool_scale=0.5 # MMU buffer pool scaling (сток)
+higig2_hdr_mode=1
+bcm56822_8x16=1
+
+# --- СРЕДНИЙ/ВЫСОКИЙ РИСК (может повлиять на init/перечисление портов — пробовать осторожно) ---
+module_64ports=1          # 64-портовый режим (у нас нет; может менять port enumeration)
+miim_intr_enable=1        # сток=1; мы ставили 0 под real-IRQ — менять ТОЛЬКО с проверкой init-флейка
+# port_init_autoneg_xe=0  # инференс; у нас xe и так an управляем через rc.soc/SFPScan
+# parity_enable=0         # инференс
+# bcm_num_cos=4           # инференс (число CoS-очередей)
+
+# ПРИМЕЧАНИЕ: generic pbmp_xport_xe у стока = 0x1fffffffffffffffe (все 1-64), затем поверх
+# ghal_port_params_mode_2=0x02223fffffffffffe под карту TA1_LCQ4X48. Наш config уже использует
+# mode_2 (0x2223fffffffffffe) напрямую — это и есть эффективный xport, менять не нужно.
