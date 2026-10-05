@@ -1,0 +1,63 @@
+# РЕКОНСТРУКЦИЯ стокового портмапа из netdevd (work/x/netdevd), 2026-10-05.
+# ТОЛЬКО литерал-подтверждённые значения (портмап). port_phy_addr/pbmp/lcpll/таймауты
+# сток вычисляет программно — в бинаре их нет, здесь НЕ приводим. Это РЕФЕРЕНС, НЕ рабочий
+# config.bcm (для реального запуска нужен наш scripts/config.bcm с phy_addr и пр.).
+# См. reference/stock-config-reconstruction.md.
+
+# --- Режим 48x10G (SFP+). phys 17-20 ЗАРЕЗЕРВИРОВАНЫ (пропуск подтверждён стоком) ---
+portmap_1=1:10
+portmap_2=2:10
+portmap_3=3:10
+portmap_4=4:10
+portmap_5=5:10
+portmap_6=6:10
+portmap_7=7:10
+portmap_8=8:10
+portmap_9=9:10
+portmap_10=10:10
+portmap_11=11:10
+portmap_12=12:10
+portmap_13=13:10
+portmap_14=14:10
+portmap_15=15:10
+portmap_16=16:10
+portmap_17=21:10
+portmap_18=22:10
+portmap_19=23:10
+portmap_20=24:10
+portmap_21=25:10
+portmap_22=26:10
+portmap_23=27:10
+portmap_24=28:10
+portmap_25=29:10
+portmap_26=30:10
+portmap_27=31:10
+portmap_28=32:10
+portmap_29=33:10
+portmap_30=34:10
+portmap_31=35:10
+portmap_32=36:10
+portmap_33=37:10
+portmap_34=38:10
+portmap_35=39:10
+portmap_36=40:10
+portmap_37=41:10
+portmap_38=42:10
+portmap_39=43:10
+portmap_40=44:10
+portmap_41=45:10
+portmap_42=46:10
+portmap_43=47:10
+portmap_44=48:10
+portmap_45=49:10
+portmap_46=50:10
+portmap_47=51:10
+portmap_48=52:10
+
+# --- QSFP: нативный 40G (физические порты 57/61/65/69) ---
+# (логические слоты 4-лэйновые; в нашем рабочем config — portmap_49/53/57/61)
+# 57:40  61:40  65:40  69:40
+
+# --- QSFP: breakout 4x10G (те же QSFP, phys 57-72) ---
+# 57:10 58:10 59:10 60:10 / 61:10 62:10 63:10 64:10
+# 65:10 66:10 67:10 68:10 / 69:10 70:10 71:10 72:10
