@@ -108,19 +108,28 @@ while [ $i -lt "$INIT_TIMEOUT" ]; do
 done
 
 if [ "$ok" != 1 ]; then
-  echo "[fail] нет BOX_INIT_DONE за ${INIT_TIMEOUT}s -> init bcm завис/флейкнул."
+  echo "[fail] нет BOX_INIT_DONE за ${INIT_TIMEOUT}s -> init завис/флейкнул (real-IRQ flake)."
   kill -9 $(pidof bcm.user) $(pidof script) $HOLDER 2>/dev/null
   rm -f "$FIFO"
-  # ВАЖНО: pm НЕ размораживаем! kill -CONT pm при мёртвом netdevd => pm РЕБУТИТ коробку
-  #        (проверено 2026-10-03). Оставляем pm замороженным: ребут-петли нет, SSH жив
-  #        (sshd — ребёнок pm, уже запущен; сеть держит отдельный boot.sh). Свитч не
-  #        форвардит до ручного вмешательства, но коробка ДОСТУПНА. Повтор — ручной reboot.
-  echo "[fail] pm оставлен замороженным (без ребута). SSH жив. Для повтора — 'reboot -f'."
-  echo "[fail] ВНИМАНИЕ: обычный 'reboot' при замороженном pm НЕ срабатывает (идёт через pm) — нужен 'reboot -f'."
+  # АВТО-РЕТРАЙ флейка real-IRQ (2026-10-05): init флейкует ~1/2-1/3 (виснет после init soc,
+  # BDE-reload не всегда заводит реальный IRQ). Чистый ребут = новая попытка с новым BDE-reload,
+  # обычно лечит. Счётчик в VAR (переживает ребут), кап MAXRETRY — чтобы НЕ уйти в вечную
+  # ребут-петлю, если сломано не флейком (напр. бит конфиг). Сбрасывается при успехе.
+  RF="$BCM/.boxstart_retries"; MAXRETRY=3
+  n=$(cat "$RF" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "$RF"; sync
+  if [ "$n" -le "$MAXRETRY" ]; then
+    echo "[retry] попытка $n/$MAXRETRY -> kill bcm.user; sync; reboot -f (чистый BDE-reload на след. старте)."
+    kill -9 $(pidof bcm.user) 2>/dev/null; sync; reboot -f; exit 1
+  fi
+  # Исчерпан лимит: НЕ размораживаем pm (kill -CONT pm при мёртвом netdevd => ребут, 2026-10-03)
+  # и НЕ ребутим больше. Коробка доступна (SSH жив, sshd — ребёнок замороженного pm; сеть — boot.sh).
+  echo "[fail] исчерпан лимит ретраев ($MAXRETRY) -> похоже НЕ флейк. pm оставлен замороженным, SSH жив."
+  echo "[fail] Сброс: rm $RF, затем 'reboot -f'. (Обычный 'reboot' при замороженном pm не проходит.)"
   exit 1
 fi
 
 # Успех: bcm.user жив и держит чип, FIFO открыт держателем. ------------------
+rm -f "$BCM/.boxstart_retries" 2>/dev/null   # сброс счётчика авто-ретраев
 echo "[DONE] BOX_INIT_DONE получен -> наш L2-свитч активен. bcm.user pid=$(pidof bcm.user)."
 echo "       диаг-команды:   echo 'ps' > $FIFO   (вывод в $BCMLOG)"
 
@@ -132,4 +141,14 @@ if [ -x "$BCM/box-leds.sh" ]; then
   sh "$BCM/box-leds.sh" >/dev/null 2>&1
   echo "led 0 auto on" > "$FIFO"; echo "led 1 auto on" > "$FIFO"
 fi
+
+# ХОТ-ПЛАГ (2026-10-05): SFP втыкают на горячую, а SFPScan отрабатывает лишь раз в rc.soc.
+# SFPScan теперь быстрый (fail-fast presence в phy84740: пустой порт ~мс вместо 1с) и
+# ИДЕМПОТЕНТНЫЙ (порт с нужной скоростью не трогает -> линк не дёргается) -> можно периодически
+# пере-сканировать и ловить вставленные/вынутые модули. Демон-ребёнок живёт, пока жив FIFO/bcm.user.
+( while sleep 20; do
+    pidof bcm.user >/dev/null 2>&1 && [ -p "$FIFO" ] || exit 0
+    echo "SFPScan" > "$FIFO" 2>/dev/null || exit 0
+  done ) &
+echo "[hotplug] периодический SFPScan (каждые 20с) запущен (pid $!)."
 exit 0

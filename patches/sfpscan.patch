@@ -146,3 +146,25 @@
              }
          } else {
              byte = LS_LED_DATA_OFFSET + phy_port;
+--- a/src/soc/phy/phy84740.c
++++ b/src/soc/phy/phy84740.c
+@@ -5240,11 +5240,17 @@
+ #if defined(BROADCOM_DEBUG) || defined(DEBUG_PRINT)
+     start = sal_time_usecs();
+ #endif /* defined(BROADCOM_DEBUG) || defined(DEBUG_PRINT */
+-    soc_timeout_init(&to, 1000000, 0);
++    /* Gigamon TA100 (2026-10-05): 100ms (was 1s) + break on FAIL as well as
++     * COMPLETE. An absent SFP NAKs the 2-wire access -> status goes to FAIL;
++     * stock code only broke on COMPLETE, so every empty port burned the full
++     * 1s timeout (~45s over 48 cages). Now empty ports return in ~ms.
++     * Success path (COMPLETE) is unchanged. */
++    soc_timeout_init(&to, 100000, 0);
+     while (!soc_timeout_check(&to)) {
+         SOC_IF_ERROR_RETURN
+             (READ_PHY84740_MMF_PMA_PMD_REG(unit, pc, 0x8000, &data16));
+-        if (((data16 & PHY84740_2W_STAT) == PHY84740_2W_STAT_COMPLETE)) {
++        if (((data16 & PHY84740_2W_STAT) == PHY84740_2W_STAT_COMPLETE) ||
++            ((data16 & PHY84740_2W_STAT) == PHY84740_2W_STAT_FAIL)) {
+             break;
+         }
+     }

@@ -11,6 +11,15 @@ SDK: **sdk-xgs-robo-6.3.2**, таргет `systems/linux/user/gto-2_6` (BCM56840
    `include/appl/diag/cmdlist.h` (DCL_CMD), `src/appl/diag/cmdlist.c` (строка в bcm_esw_cmd_list).
 2. **LED-fix** — `src/appl/diag/ledproc.c`: перенос skip_count-компенсации дырки phys 17-20 с
    Trident2 на наш Trident(56840). Без него панельные диоды едут на −4 начиная с cage 17.
+3. **Fast-presence** — `src/soc/phy/phy84740.c` (`_phy_84740_bsc_rw`): опрос I2C-статуса теперь
+   выходит и на `FAIL` (не только `COMPLETE`) + таймаут 1с→100мс. Пустой SFP-порт NAK'ает сразу,
+   так что SFPScan на пустых кейджах ~мс вместо ~1с (≈45с→<1с на 48 портов). Успешное чтение не изменено.
+
+## Сопутствующие правки (вне SDK, в scripts/)
+- `scripts/box-start.sh`: (а) **авто-ретрай** флейка real-IRQ — при отсутствии BOX_INIT_DONE
+  `reboot -f` с капом 3 (счётчик в /var/bcm/.boxstart_retries, сброс при успехе); (б) **хот-плаг** —
+  фоновый поллер каждые 20с шлёт `SFPScan` в FIFO (быстрый+идемпотентный → ловит горячую вставку).
+- `scripts/rc.soc.sfpscan`: rc.soc с `SFPScan dump` вместо хардкод-форса 10G.
 
 ## Применить
 Из корня SDK (`work/bcm/sdk-xgs-robo-6.3.2`):
