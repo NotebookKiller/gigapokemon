@@ -1,7 +1,8 @@
-# SFPScan diag command — SDK patch (sdk-xgs-robo-6.3.2, gto-2_6)
-# Adds 'SFPScan [pbmp] [dump]' diag command: reads SFP EEPROM (SFF-8472, I2C 0x50)
-# via BCM84740/84754 PHY I2C master (phy_84740_i2cdev_read) and auto-sets port speed.
-# Generated 2026-10-04T20:27:33Z
+# SDK-патч: SFPScan + LED-fix (sdk-xgs-robo-6.3.2, gto-2_6)
+# 1) SFPScan diag-команда (port.c, cmdlist.c, cmdlist.h)
+# 2) LED-fix: skip_count-компенсация дырки phys 17-20 для Trident(56840) в ledproc.c
+#    (сток SDK делает это только для Trident2; наш 56840 попадал в else без компенсации -> сдвиг -4)
+# Сгенерено 2026-10-05T08:55:36Z
 
 ################## diff: src/appl/diag/port.c ##################
 --- src/appl/diag/port.c.orig	2026-10-04 22:04:10.031339308 +0300
@@ -136,4 +137,26 @@
  DCL_CMD(if_esw_combo,   if_esw_combo_usage)
  DCL_CMD(cmd_esw_cablediag,  cmd_esw_cablediag_usage)
  DCL_CMD(cmd_ibod_sync, ibod_sync_usage)
+
+################## diff: src/appl/diag/ledproc.c ##################
+--- src/appl/diag/ledproc.c.orig	2026-10-05 11:54:12.373196886 +0300
++++ src/appl/diag/ledproc.c	2026-10-05 11:54:49.895888600 +0300
+@@ -379,7 +379,16 @@
+                 }
+                 byte = LS_LED_DATA_OFFSET_A0 + phy_port - skip_count;
+             } else {
+-                byte = LS_LED_DATA_OFFSET_A0 + phy_port;
++                /* Trident/Trident+ (BCM56840, TA100): compact the physical-port
++                 * gap (reserved phys 17-20) so the panel LED chain stays aligned
++                 * with the cage numbering. Stock SDK does this only for Trident2;
++                 * mirror it here. skip_count=0 for chips without gaps -> no change.
++                 * Gigamon TA100 project (2026-10-05): fixes the -4 LED shift. */
++                int i, skip_count = 0;
++                for (i=1; i<phy_port; i++) {
++                    skip_count += ((si->port_p2l_mapping[i+(led_ix*ledup0_pmax)] == -1) ? 1: 0);
++                }
++                byte = LS_LED_DATA_OFFSET_A0 + phy_port - skip_count;
+             }
+         } else {
+             byte = LS_LED_DATA_OFFSET + phy_port;
 

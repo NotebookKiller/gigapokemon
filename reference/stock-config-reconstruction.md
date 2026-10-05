@@ -93,3 +93,26 @@ Devmem-адреса per-port статуса (BAR 0xc0000000): LEDUP0 phys P(1-36
 LEDUP1 phys P(37-72)=0xc0000000+0x2400+4*(0x80+(P-36)). Эти ячейки можно ЧИТАТЬ devmem'ом при живом
 стоке (без diag-шелла) — характеризовать раскладку эмпирически. СНАЧАЛА проверить: показывает ли СТОК
 панель ровно или тот же −4 (если тот же — это разводка панели, «фикс» = просто сместить запись на 4).
+
+## LED −4: РЕШЕНО — корневая причина найдена в исходнике (2026-10-05)
+Шаг 1 (serial, глазами): под СТОКОМ диоды РОВНЫЕ → это не разводка панели, а наш путь записи.
+Шаг 2 (serial devmem, наш bcm.user): горит только slot (idx 0xA3) = `LS_LED_DATA_OFFSET_A0(0xa0)+phy_port 3`
+→ линканулся форс `xe3`; подтверждает «пишем по phys без компенсации».
+
+КОРЕНЬ (однозначно): `src/appl/diag/ledproc.c`, callback `ledproc_linkscan_cb` (его ставит `led auto on`):
+схлопывание дырки через `skip_count` есть ТОЛЬКО в ветке `if (SOC_IS_TRIDENT2(unit))`. Наш BCM56840 =
+Trident (SOC_IS_TD_TT=1, SOC_IS_TRIDENT2=0) → уходит в `else { byte = LS_LED_DATA_OFFSET_A0 + phy_port; }`
+БЕЗ skip_count. Физ.порты 17-20 (p2l=-1) не выбрасываются из индекса → панель едет на −4 с cage 17.
+Сток (netdevd) компенсирует → у него ровно. 56840 использует A0-offset (0xa0), подтверждено эмпирически.
+
+ФИКС (сделан, собран): в том `else` добавлена та же skip_count-логика, что у Trident2, но с ledup0_pmax(36):
+```
+int i, skip_count = 0;
+for (i=1; i<phy_port; i++)
+    skip_count += (si->port_p2l_mapping[i+(led_ix*ledup0_pmax)] == -1) ? 1 : 0;
+byte = LS_LED_DATA_OFFSET_A0 + phy_port - skip_count;
+```
+Проверка математики: phys 21 (cage17): skip=4 (phys17-20 unmapped) → byte=0xa0+21-4=0xa0+17 → панель 17 ✓.
+skip_count=0 для чипов без дырок → поведение не меняется (безопасно). Патч: patches/sfpscan.patch,
+бинарь: bins/bcm.user.sfpscan-ledfix.gz. Деплой — когда вернётся SSH (40МБ по serial не зальёшь);
+проверка после деплоя: воткнуть в cage 17/21 → диод должен совпасть с номером разъёма.
