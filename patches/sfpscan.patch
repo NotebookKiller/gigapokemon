@@ -1,12 +1,5 @@
-# SDK-патч: SFPScan + LED-fix (sdk-xgs-robo-6.3.2, gto-2_6)
-# 1) SFPScan diag-команда (port.c, cmdlist.c, cmdlist.h)
-# 2) LED-fix: skip_count-компенсация дырки phys 17-20 для Trident(56840) в ledproc.c
-#    (сток SDK делает это только для Trident2; наш 56840 попадал в else без компенсации -> сдвиг -4)
-# Сгенерено 2026-10-05T08:55:36Z
-
-################## diff: src/appl/diag/port.c ##################
---- src/appl/diag/port.c.orig	2026-10-04 22:04:10.031339308 +0300
-+++ src/appl/diag/port.c	2026-10-04 23:19:58.022409516 +0300
+--- a/src/appl/diag/port.c
++++ b/src/appl/diag/port.c
 @@ -10877,3 +10877,105 @@
  }
  
@@ -113,10 +106,8 @@
 +    printk("SFPScan: %d port(s) reconfigured.\n", done);
 +    return CMD_OK;
 +}
-
-################## diff: src/appl/diag/cmdlist.c ##################
---- src/appl/diag/cmdlist.c.orig	2026-10-04 22:04:10.032448025 +0300
-+++ src/appl/diag/cmdlist.c	2026-10-04 22:05:26.488284920 +0300
+--- a/src/appl/diag/cmdlist.c
++++ b/src/appl/diag/cmdlist.c
 @@ -621,6 +621,7 @@
      {"SCHan",           cmd_schan,              schan_usage,            "Send raw S-Channel message, get response" },
      {"SEArch",          mem_search,             search_usage,           "Search a table for a byte pattern" },
@@ -125,10 +116,8 @@
      {"SHOW",            cmd_esw_show,           cmd_esw_show_usage,     "Show information on a subsystem" },
  #ifdef PLISIM
      {"SHUTDOWN",        cmd_shutd,              NULL,                   "Tell plisim to shutdown" },
-
-################## diff: include/appl/diag/cmdlist.h ##################
---- include/appl/diag/cmdlist.h.orig	2026-10-04 22:04:10.033598572 +0300
-+++ include/appl/diag/cmdlist.h	2026-10-04 22:05:16.034816267 +0300
+--- a/include/appl/diag/cmdlist.h
++++ b/include/appl/diag/cmdlist.h
 @@ -424,6 +424,7 @@
  DCL_CMD(if_esw_dtag,    if_esw_dtag_usage)
  DCL_CMD(if_esw_linkscan,    if_esw_linkscan_usage)
@@ -137,10 +126,8 @@
  DCL_CMD(if_esw_combo,   if_esw_combo_usage)
  DCL_CMD(cmd_esw_cablediag,  cmd_esw_cablediag_usage)
  DCL_CMD(cmd_ibod_sync, ibod_sync_usage)
-
-################## diff: src/appl/diag/ledproc.c ##################
---- src/appl/diag/ledproc.c.orig	2026-10-05 11:54:12.373196886 +0300
-+++ src/appl/diag/ledproc.c	2026-10-05 11:54:49.895888600 +0300
+--- a/src/appl/diag/ledproc.c
++++ b/src/appl/diag/ledproc.c
 @@ -379,7 +379,16 @@
                  }
                  byte = LS_LED_DATA_OFFSET_A0 + phy_port - skip_count;
@@ -159,4 +146,3 @@
              }
          } else {
              byte = LS_LED_DATA_OFFSET + phy_port;
-
