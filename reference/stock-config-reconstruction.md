@@ -53,3 +53,20 @@ portmap_21=25:10 ... portmap_48=52:10      (logical 21-48 -> phys 25-52)
 мэппинг QSFP) — это подтверждает корректность всей нашей разметки портов. Отличия — только там, где
 сток работает программно (phy_addr/pbmp/lcpll/таймауты): мы это задаём статикой в config.bcm, что и есть
 штатный SDK-способ воспроизвести то же самое. Файл-реконструкция портмапа: `scripts/config.bcm.stock-ref`.
+
+## pbmp_xport_xe — детальный разбор (из netdevd .rodata)
+Литералы лежат в .rodata около 0x10881a0. Сток держит таблицу режимов и выбирает один
+по типу карты, затем `soc_property_set(unit,"pbmp_xport_xe",<value>)`.
+
+| Имя | Значение | Декод (порты) |
+|---|---|---|
+| `pbmp_xport_xe` (generic SDK-дефолт) | `0x1fffffffffffffffe` | 1-64 (CPU=0 искл.) |
+| `ghal_port_params_mode_1` | `0x023fffffffffffffe` | 1-57, 61 (breakout-режим QSFP) |
+| `ghal_port_params_mode_2` | `0x02223fffffffffffe` | **1-49, 53, 57, 61** — НАШ режим |
+| `ghal_port_params_mode_3` | только имя | значения-литерала нет (вычисляется/не исп.) |
+
+mode_2 = 52 порта TA1_LCQ4X48: logical 1-48 (SFP+) + 49/53/57/61 (базовый слот каждого
+4-лэйнового QSFP-40G). Numerically == наш `pbmp_xport_xe=0x2223fffffffffffe` (сток пишет 0x022...).
+`pbmp_xport_ge` битмап-литерала не имеет (spn_PBMP_GPORT_STACK). Других pbmp_xport_* нет.
+Рядом в таблице — QSFP phy_addr↔portmap: 0x50→69:10, 0x51→70:10 … 0x4c→65:10 … 0x48→61:10
+(phy_addr hex для лэйнов QSFP, phys 57-72).
