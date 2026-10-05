@@ -1,0 +1,31 @@
+            } else if (SOC_IS_TRIDENT2(unit)) {
+                int i, skip_count = 0;
+                for (i=1; i<phy_port; i++) {
+                    skip_count += ((si->port_p2l_mapping[i+(led_ix*TRIDENT2_LEDUP0_PORT_MAX)] == -1) ? 1: 0);
+                }
+                byte = LS_LED_DATA_OFFSET_A0 + phy_port - skip_count;
+            } else {
+                /* Trident/Trident+ (BCM56840, Gigamon TA100): this chip's LED
+                 * microcode dense-packs the reserved phys-port gap (phys 17-20
+                 * are unmapped), so raw-phys status lands 4 LEDs too far left for
+                 * every cage >=21 (verified on HW 2026-10-05: phys 6->LED6,
+                 * 21->LED17, 23->LED19, 48->LED44). Shift the write +gap so that,
+                 * after the microcode compaction, it lands on the true cage.
+                 * (TD2 above SUBTRACTS because its microcode expects pre-packed
+                 * input; ours packs itself, hence +.) skip_count = reserved
+                 * (p2l==-1) phys ports below this one, counted globally so it
+                 * also covers LEDUP1; 0 for chips without gaps -> no change. */
+                int i, skip_count = 0;
+                int phys_full = si->port_l2p_mapping[port];
+                for (i = 1; i < phys_full; i++) {
+                    skip_count += ((si->port_p2l_mapping[i] == -1) ? 1 : 0);
+                }
+                byte = LS_LED_DATA_OFFSET_A0 + phy_port + skip_count;
+            }
+        } else {
+            int i, skip_count = 0;
+            int phys_full = si->port_l2p_mapping[port];
+            for (i = 1; i < phys_full; i++) {
+                skip_count += ((si->port_p2l_mapping[i] == -1) ? 1 : 0);
+            }
+            byte = LS_LED_DATA_OFFSET + phy_port + skip_count;
