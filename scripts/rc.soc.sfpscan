@@ -9,7 +9,7 @@ port xe enable=true stp=forward an=on
 # I2C-мастер PHY 84740/84754 и ставит скорость: 10G для 10GbE/DAC, 1G для 1000BASE.
 # Порты, уже имеющие нужную скорость, НЕ трогает (линк не дёргается). 'dump' печатает
 # ключевые байты SFF-8472 (id/b3/b6/b8/b12) в лог для диагностики.
-SFPScan dump
+SFPScan xe1-xe48 dump
 linkscan 250000
 port xe linkscan=on
 echo "BOX_INIT_DONE"

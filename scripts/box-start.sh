@@ -148,7 +148,7 @@ fi
 # пере-сканировать и ловить вставленные/вынутые модули. Демон-ребёнок живёт, пока жив FIFO/bcm.user.
 ( while sleep 20; do
     pidof bcm.user >/dev/null 2>&1 && [ -p "$FIFO" ] || exit 0
-    echo "SFPScan" > "$FIFO" 2>/dev/null || exit 0
+    echo "SFPScan xe1-xe48" > "$FIFO" 2>/dev/null || exit 0
   done ) &
 echo "[hotplug] периодический SFPScan (каждые 20с) запущен (pid $!)."
 exit 0
