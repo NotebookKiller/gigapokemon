@@ -1,0 +1,205 @@
+00: 02 01  	ld	a,0x01
+02: 10     	ld	b,a
+03: F9     	add	b,b
+04: 81     	inc	b
+05: 67 56  	call	0x56
+07: 80     	inc	a
+08: D2 25  	cmp	a,0x25
+0A: 74 02  	jnz	0x02
+0C: 12 F0  	ld	b,0xf0
+0E: 85     	inc	(b)
+0F: 05     	ld	a,(b)
+10: D2 05  	cmp	a,0x05
+12: 71 16  	jc	0x16
+14: 52 00  	ld	(b),0x00
+16: 3A 24  	send	0x24
+18: 06 F3  	ld	a,(0xf3)
+1A: 67 63  	call	0x63
+1C: 75 25  	jnc	0x25
+1E: 12 A4  	ld	b,0xa4
+20: FE F3  	add	b,(0xf3)
+22: 02 0A  	ld	a,0x0a
+24: 50     	ld	(b),a
+25: 06 F3  	ld	a,(0xf3)
+27: 67 5C  	call	0x5c
+29: 75 32  	jnc	0x32
+2B: 12 C9  	ld	b,0xc9
+2D: FE F3  	add	b,(0xf3)
+2F: 02 0A  	ld	a,0x0a
+31: 50     	ld	(b),a
+32: 12 C9  	ld	b,0xc9
+34: FE F3  	add	b,(0xf3)
+36: 95     	dec	(b)
+37: 75 44  	jnc	0x44
+39: 85     	inc	(b)
+3A: 12 A4  	ld	b,0xa4
+3C: FE F3  	add	b,(0xf3)
+3E: 95     	dec	(b)
+3F: 75 78  	jnc	0x78
+41: 85     	inc	(b)
+42: 77 6A  	jmp	0x6a
+44: 12 A4  	ld	b,0xa4
+46: FE F3  	add	b,(0xf3)
+48: 95     	dec	(b)
+49: 75 4E  	jnc	0x4e
+4B: 85     	inc	(b)
+4C: 77 71  	jmp	0x71
+4E: 16 F0  	ld	b,(0xf0)
+50: DA 02  	cmp	b,0x02
+52: 71 71  	jc	0x71
+54: 77 78  	jmp	0x78
+56: 5A 00  	tst	(b),0x00
+58: 75 7F  	jnc	0x7f
+5A: 77 83  	jmp	0x83
+5C: 12 80  	ld	b,0x80
+5E: F8     	add	b,a
+5F: 15     	ld	b,(b)
+60: 1A 04  	tst	b,0x04
+62: 57     	ret
+63: 12 80  	ld	b,0x80
+65: F8     	add	b,a
+66: 15     	ld	b,(b)
+67: 1A 05  	tst	b,0x05
+69: 57     	ret
+6A: 32 0E  	pushst	0x0e
+6C: 87     	pack
+6D: 32 0E  	pushst	0x0e
+6F: 87     	pack
+70: 57     	ret
+71: 32 0F  	pushst	0x0f
+73: 87     	pack
+74: 32 0E  	pushst	0x0e
+76: 87     	pack
+77: 57     	ret
+78: 32 0E  	pushst	0x0e
+7A: 87     	pack
+7B: 32 0F  	pushst	0x0f
+7D: 87     	pack
+7E: 57     	ret
+7F: 22 0F  	push	0x0f
+81: 87     	pack
+82: 57     	ret
+83: 22 0E  	push	0x0e
+85: 87     	pack
+86: 57     	ret
+87: 57     	ret
+88: 57     	ret
+89: 57     	ret
+8A: 57     	ret
+8B: 57     	ret
+8C: 57     	ret
+8D: 57     	ret
+8E: 57     	ret
+8F: 57     	ret
+90: 57     	ret
+91: 57     	ret
+92: 57     	ret
+93: 57     	ret
+94: 57     	ret
+95: 57     	ret
+96: 57     	ret
+97: 57     	ret
+98: 57     	ret
+99: 57     	ret
+9A: 57     	ret
+9B: 57     	ret
+9C: 57     	ret
+9D: 57     	ret
+9E: 57     	ret
+9F: 57     	ret
+A0: 57     	ret
+A1: 57     	ret
+A2: 57     	ret
+A3: 57     	ret
+A4: 57     	ret
+A5: 57     	ret
+A6: 57     	ret
+A7: 57     	ret
+A8: 57     	ret
+A9: 57     	ret
+AA: 57     	ret
+AB: 57     	ret
+AC: 57     	ret
+AD: 57     	ret
+AE: 57     	ret
+AF: 57     	ret
+B0: 57     	ret
+B1: 57     	ret
+B2: 57     	ret
+B3: 57     	ret
+B4: 57     	ret
+B5: 57     	ret
+B6: 57     	ret
+B7: 57     	ret
+B8: 57     	ret
+B9: 57     	ret
+BA: 57     	ret
+BB: 57     	ret
+BC: 57     	ret
+BD: 57     	ret
+BE: 57     	ret
+BF: 57     	ret
+C0: 57     	ret
+C1: 57     	ret
+C2: 57     	ret
+C3: 57     	ret
+C4: 57     	ret
+C5: 57     	ret
+C6: 57     	ret
+C7: 57     	ret
+C8: 57     	ret
+C9: 57     	ret
+CA: 57     	ret
+CB: 57     	ret
+CC: 57     	ret
+CD: 57     	ret
+CE: 57     	ret
+CF: 57     	ret
+D0: 57     	ret
+D1: 57     	ret
+D2: 57     	ret
+D3: 57     	ret
+D4: 57     	ret
+D5: 57     	ret
+D6: 57     	ret
+D7: 57     	ret
+D8: 57     	ret
+D9: 57     	ret
+DA: 57     	ret
+DB: 57     	ret
+DC: 57     	ret
+DD: 57     	ret
+DE: 57     	ret
+DF: 57     	ret
+E0: 57     	ret
+E1: 57     	ret
+E2: 57     	ret
+E3: 57     	ret
+E4: 57     	ret
+E5: 57     	ret
+E6: 57     	ret
+E7: 57     	ret
+E8: 57     	ret
+E9: 57     	ret
+EA: 57     	ret
+EB: 57     	ret
+EC: 57     	ret
+ED: 57     	ret
+EE: 57     	ret
+EF: 57     	ret
+F0: 57     	ret
+F1: 57     	ret
+F2: 57     	ret
+F3: 57     	ret
+F4: 57     	ret
+F5: 57     	ret
+F6: 57     	ret
+F7: 57     	ret
+F8: 57     	ret
+F9: 57     	ret
+FA: 57     	ret
+FB: 57     	ret
+FC: 57     	ret
+FD: 57     	ret
+FE: 57     	ret
+FF: 57     	ret
