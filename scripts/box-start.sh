@@ -134,12 +134,17 @@ echo "[DONE] BOX_INIT_DONE получен -> наш L2-свитч активен
 echo "       диаг-команды:   echo 'ps' > $FIFO   (вывод в $BCMLOG)"
 
 # Панельные LED: грузим board-программу netdevd (devmem) + включаем auto-обновление от linkscan.
-# (Микро заводится, порты 1-16 ложатся верно; 17-48 — перемешка из-за portmap-перенумерации,
-#  REMAP ещё не зашит — косметика, см. [[gigamon-ta100-config-db]].)
+# (Свой микрокод с таблицей «позиция цепочки → ячейка статуса» под разводку панели TA100,
+#  см. шапку box-leds.sh.)
 if [ -x "$BCM/box-leds.sh" ]; then
   echo "[led] инициализация панельных LED (box-leds.sh + led auto)"
   sh "$BCM/box-leds.sh" >/dev/null 2>&1
   echo "led 0 auto on" > "$FIFO"; echo "led 1 auto on" > "$FIFO"
+  # диоды клеток 33-36 висят на LEDUP1, их порты — на LEDUP0: зеркалим линк раз в секунду
+  ( while sleep 1; do
+      pidof bcm.user >/dev/null 2>&1 || exit 0
+      sh "$BCM/box-leds.sh" mirror >/dev/null 2>&1
+    done ) &
 fi
 
 # ХОТ-ПЛАГ (2026-10-05): SFP втыкают на горячую, а SFPScan отрабатывает лишь раз в rc.soc.
