@@ -1,0 +1,11 @@
+set rcerror=false
+init soc
+init misc
+init mmu
+init bcm
+# ТЕСТ 2026-10-16: как в удачном запуске 2026-10-03 (xe39 up 10G) — БЕЗ an=on и БЕЗ SFPScan.
+# Порты остаются в дефолтном 10G после init. Проверяем, поднимается ли 10G DAC на клетках 25+.
+port xe enable=true stp=forward
+linkscan 250000
+port xe linkscan=on
+echo "BOX_INIT_DONE"
