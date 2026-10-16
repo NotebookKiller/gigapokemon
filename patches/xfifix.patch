@@ -1,0 +1,25 @@
+--- a/src/appl/diag/port.c	2026-10-16 23:24:54.162719710 +0300
++++ b/src/appl/diag/port.c	2026-10-16 23:24:54.147154451 +0300
+@@ -10972,6 +10972,22 @@
+         if (!an) {
+             rv |= bcm_port_speed_set(unit, port, want);
+         }
++        if (want == 10000) {
++            /* TA100: after 1G, forced 10G_XFI on the Warpcore lane does not
++             * lock on some cages (25-48, 19: long XFI to the 84754) -> MAC
++             * Fault(Local). Re-enabling the lane's IEEE autoneg bit (int MII
++             * ctrl bit 12) leaves forced XFI for the post-init mode, which
++             * works on every cage. */
++            /* INDIRECT addr: plain addrs go straight to MDIO (lane 0 only),
++             * indirect ones go through the WC40 driver which sets the AER lane. */
++            uint32 reg = BCM_PORT_PHY_REG_INDIRECT_ADDR(0, 0, 0x0);
++            uint32 mii = 0;
++            if (bcm_port_phy_get(unit, port, BCM_PORT_PHY_INTERNAL,
++                                 reg, &mii) == BCM_E_NONE) {
++                rv |= bcm_port_phy_set(unit, port, BCM_PORT_PHY_INTERNAL,
++                                       reg, mii | 0x1000);
++            }
++        }
+         printk("SFPScan %s: SFP -> %dG an=%d (was %dG) rv=%d\n",
+                SOC_PORT_NAME(unit, port), want / 1000, an, cur / 1000, rv);
+         done++;
