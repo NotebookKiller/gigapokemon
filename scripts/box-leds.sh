@@ -6,11 +6,13 @@
 # Разводка панели TA100 (проба scripts/led-probe.sh, 2026-10-15):
 #   LEDUP0 поз 1-16 → диоды клеток 1-16; поз 17-20 не выведены; поз p (21-36) → диод клетки p-4.
 #   LEDUP1 поз p (1-16) → диод клетки 32+p; поз 21/25/29/33 → QSFP Q2/Q4/Q3/Q1.
-# Порты: клетка c (1-16, 21-48) = phys c; клетки 17-20 мертвы (phys 17-20 чип не использует).
+# Порты: клетка c (1-16, 21-48) = phys c; клетки 17-20 = phys 49-52 (PHY 20-23, config.bcm.cage1720;
+# phys 17-20 чип не использует).
 # Железо (scan chain) кладёт статус phys P своего LEDUP в ячейку 2*P+1 (бит0 = линк),
 # P локальный: LEDUP0 phys 1-36, LEDUP1 phys 37-72 → 1-36.
-# Диоды клеток 33-36 сидят на LEDUP1, а их порты на LEDUP0 → зеркалим 4 ячейки
-# (LEDUP0 67,69,71,73 → LEDUP1 0xEC-0xEF), это делает цикл в box-start.sh (box-leds.sh mirror).
+# Зеркала (цикл в box-start.sh, box-leds.sh mirror), т.к. диод и порт на разных LEDUP:
+#   клетки 33-36: порты phys 33-36 на LEDUP0 (67,69,71,73) → диоды на LEDUP1 (0xEC-0xEF);
+#   клетки 17-20: порты phys 49-52 на LEDUP1 (27,29,31,33) → диоды на LEDUP0 (0xEC-0xEF).
 #
 # Микрокод (36 бит, по биту на позицию; 0 в таблице = диод погашен, ячейка 0 всегда 0):
 #   00 ld a,1 / 02 ld b,0xC7 / 04 add b,a / 05 ld b,(b) / 06 tst (b),0 / 08 jnc 0F /
@@ -22,13 +24,19 @@ BAR=0xc0000000
 DM="busybox devmem"
 PROG="02 01 12 C7 F8 15 5A 00 75 0F 22 0E 87 77 12 22 0F 87 80 D2 25 74 02 3A 24"
 MAP=0xC8      # map[p] в ячейке MAP+p-1
-MIRROR=0xEC   # LEDUP1: копии линка phys 33-36
+MIRROR=0xEC   # LEDUP1: копии линка phys 33-36; LEDUP0: копии линка phys 49-52
 
 if [ "$1" = mirror ]; then   # один проход зеркалирования (вызывается циклом из box-start.sh)
   n=0
   for idx in 67 69 71 73; do
     v=$($DM $((BAR+0x1400+idx*4)) 32)
     $DM $((BAR+0x2400+(MIRROR+n)*4)) 32 $((v & 1))
+    n=$((n+1))
+  done
+  n=0
+  for idx in 27 29 31 33; do
+    v=$($DM $((BAR+0x2400+idx*4)) 32)
+    $DM $((BAR+0x1400+(MIRROR+n)*4)) 32 $((v & 1))
     n=$((n+1))
   done
   exit 0
@@ -43,7 +51,8 @@ load_prog() {   # $1 = program RAM base offset (0x1800 или 0x2800)
 map0() { # LEDUP0: поз p → ячейка
   p=$1
   if [ $p -le 16 ]; then echo $((2*p+1))
-  elif [ $p -le 24 ]; then echo 0                 # 17-20 не выведены, 21-24 = клетки 17-20 (мертвы)
+  elif [ $p -le 20 ]; then echo 0                 # 17-20 не выведены
+  elif [ $p -le 24 ]; then echo $((MIRROR+p-21))  # 21-24 = клетки 17-20 → зеркало phys 49-52
   else echo $((2*(p-4)+1)); fi                    # поз 25-36 → клетки/phys 21-32
 }
 map1() { # LEDUP1: поз p → ячейка
