@@ -14,4 +14,7 @@ port xe enable=true stp=forward
 SFPScan xe0-xe47 dump
 linkscan 250000
 port xe linkscan=on
+# Счётчики портов (2026-10-17): в config bcm_stat_interval=0 (так init стабильнее под real-IRQ),
+# поэтому сбор включаем уже после init — как сток, раз в 3с с DMA. Без этого `show c` пустой.
+counter Interval=3000000 PortBitMap=xe DMA=true
 echo "BOX_INIT_DONE"
