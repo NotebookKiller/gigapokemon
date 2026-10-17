@@ -1,0 +1,98 @@
+# RUNBOOK — деплой нашего свитча на TA100
+
+Актуально на 2026-10-17. Команды выполняются **с хоста**, где лежит репозиторий и который видит
+коробку (сеть 10.156/22), из корня репо. Коробка: `op@10.156.0.133` (RSA-ключ).
+
+```sh
+B=op@10.156.0.133
+cd /home/alexander_getman/claude-gigamon
+```
+
+## Что сейчас стоит на коробке (канон = репо)
+
+| Репо | Коробка | Что это |
+|---|---|---|
+| `bins/bcm.user.current.gz` (md5 `27ec25cf…`) | `/var/bcm/bcm.user` | SDK-апп: SFPScan + LED-fix + fast-presence + xfifix |
+| `scripts/config.bcm` | `/var/bcm/config.bcm` | soc-свойства: портмап, PHY-адреса, phy_long_xfi |
+| `scripts/rc.soc` | `/var/bcm/rc.soc` | init: БЕЗ `an=on`, SFPScan `xe0-xe47` |
+| `scripts/box-start.sh` | `/var/bcm/box-start.sh` | автозапуск: заморозка pm, BDE, bcm.user, LED, хотплаг-поллер |
+| `scripts/box-leds.sh` | `/var/bcm/box-leds.sh` | LED-микрокод + карта панели + зеркала (17-20, 33-36) |
+| `scripts/box-boot.sh` | `/var/bcm/boot.sh` | сетевой watchdog (DHCP .133, учётка op) |
+| `scripts/box-fans.sh` | `/var/bcm/fans.sh` | тихие вентиляторы MAX6650 (на коробке та же логика без комментариев) |
+
+Откат бинаря: `bins/bcm.user.pre-xfifix.gz` (md5 `4040c9a7…`, без хотплаг-фикса).
+
+## Карта портов (итог)
+
+- Клетки 1-16 = xe0-15 = phys 1-16; клетки 21-48 = xe16-43 = phys 21-48.
+- Клетки 17-20 = xe44-47 = logical 45-48 = **phys 49-52, PHY 20-23** (phys 17-20 — резерв чипа).
+- QSFP Q1-Q4 = xe48-51 (40G), PHY 0x50/0x44/0x4c/0x48.
+- Клетки 25-48 и некоторые другие (19) — длинная XFI-трасса: принудительный 10G_XFI после 1G
+  не ловится, поэтому `an=on` в rc.soc запрещён, а SFPScan после 10G включает AN-бит во
+  внутреннем MII Warpcore (патч `patches/xfifix.patch`).
+
+## Залить текстовый файл (скрипт/конфиг)
+
+⚠️ `cat > файл` создаёт файл **без +x**. box-start запускает LED-блок только при `[ -x box-leds.sh ]` и
+молча пропускает его — после ребута горят ВСЕ диоды. Поэтому всегда `chmod +x` для скриптов.
+
+```sh
+# скрипт (пример: box-leds.sh)
+ssh $B 'cat > /var/bcm/box-leds.sh.new' < scripts/box-leds.sh
+ssh $B 'cd /var/bcm; sh -n box-leds.sh.new && mv box-leds.sh.new box-leds.sh && chmod +x box-leds.sh && echo OK'
+
+# конфиг (+x не нужен)
+ssh $B 'cd /var/bcm; cp -a config.bcm config.bcm.bak-$(date +%F); cat > config.bcm' < scripts/config.bcm
+ssh $B 'cat > /var/bcm/rc.soc' < scripts/rc.soc
+```
+
+## Залить бинарь (40 МБ)
+
+```sh
+gunzip -c bins/bcm.user.current.gz > /tmp/bcm.user.new
+scp -o ConnectTimeout=15 /tmp/bcm.user.new $B:/var/bcm/bcm.user.new
+ssh $B 'cd /var/bcm; md5sum bcm.user.new; cp -a bcm.user bcm.user.bak-$(date +%F); \
+  kill -9 $(pidof bcm.user) 2>/dev/null; sleep 1; \
+  mv bcm.user.new bcm.user && chmod +x bcm.user && sync && reboot -f'
+```
+Замена запущенного bcm.user без `kill -9` даёт «text file busy» (молча).
+
+## Ребут
+
+```sh
+ssh $B 'kill -9 $(pidof bcm.user); sync; reboot -f'
+```
+Самовосстановление GigaVUE + DHCP занимает 3-5 мин (watchdog в boot.sh заново заводит op и .133).
+SSH-команда с ребутом всегда «зависает»/падает с 255 — это нормально.
+
+## Проверка после ребута
+
+```sh
+ssh $B 'md5sum /var/bcm/bcm.user | cut -c1-8; pidof bcm.user; grep -c BOX_INIT_DONE /tmp/bcmrun.log; \
+  tail -4 /tmp/box-start.log; \
+  printf "LED CTRL0=%s CTRL1=%s\n" $(busybox devmem 0xc0001000 32) $(busybox devmem 0xc0002000 32); \
+  echo ps > /tmp/bcm.fifo; sleep 2; tail -60 /tmp/bcmrun.log | tr -d "\r" | grep -E "^ +xe[0-9]+ +up"'
+```
+Ожидаем: md5 `27ec25cf`, `BOX_INIT_DONE`=1, в логе `[led]` и `[hotplug]`, LED CTRL = `0xB3`/`0xF3`
+(бит0=1 — процессор запущен), up только порты с модулями. Глазами: диоды = клетки с линком.
+
+## Диагностика на ходу
+
+- Diag-команды: `echo '<cmd>' > /tmp/bcm.fifo`, вывод в `/tmp/bcmrun.log` (строки с `\r`).
+- Хотплаг-тест на клетке N: `port xeK an=on` → через ≤20с поллер SFPScan вернёт 10G и линк.
+- Регистры Warpcore конкретной линии: `phy int` / прямой адрес НЕ выбирают линию (идут на lane 0).
+  Вручную: `phy raw <int_addr> 0x1f 0xffd0; phy raw <int_addr> 0x1e <lane>; phy raw <int_addr> 0x1f <block>;
+  phy raw <int_addr> 0x1<off>` (int_addr — из `phy info`, lane = (phys-1)%4). В конце вернуть AER в 0.
+
+## Откат на сток (netdevd)
+
+```sh
+ssh $B 'touch /var/bcm/DISABLE; kill -9 $(pidof bcm.user) 2>/dev/null; sync; reboot -f'
+```
+Обратно на наш свитч: `rm /var/bcm/DISABLE` и ребут.
+
+## Опасности (из опыта)
+
+- Никогда не `kill -CONT pm` при мёртвом netdevd — ребутит/вешает коробку.
+- При замороженном pm обычный `reboot` не проходит — только `kill -9 bcm.user; sync; reboot -f`.
+- Крайнее средство — serial (`co:` bash в inittab) или питание.

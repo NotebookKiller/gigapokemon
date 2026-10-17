@@ -15,16 +15,23 @@ SDK: **sdk-xgs-robo-6.3.2**, таргет `systems/linux/user/gto-2_6` (BCM56840
    выходит и на `FAIL` (не только `COMPLETE`) + таймаут 1с→100мс. Пустой SFP-порт NAK'ает сразу,
    так что SFPScan на пустых кейджах ~мс вместо ~1с (≈45с→<1с на 48 портов). Успешное чтение не изменено.
 
+## xfifix.patch (поверх sfpscan.patch)
+`src/appl/diag/port.c`, SFPScan: после перевода порта в 10G включает IEEE-autoneg бит (бит 12)
+во внутреннем MII_CTRL линии Warpcore. Без этого после 1G принудительный 10G_XFI на клетках с длинной
+XFI-трассой (19, 25-48) не ловится → MAC Fault(Local), хотплаг 1G→10G только через ребут.
+Запись идёт через `BCM_PORT_PHY_REG_INDIRECT_ADDR` — прямой адрес уходит в MDIO без AER (на lane 0).
+
 ## Сопутствующие правки (вне SDK, в scripts/)
 - `scripts/box-start.sh`: (а) **авто-ретрай** флейка real-IRQ — при отсутствии BOX_INIT_DONE
   `reboot -f` с капом 3 (счётчик в /var/bcm/.boxstart_retries, сброс при успехе); (б) **хот-плаг** —
   фоновый поллер каждые 20с шлёт `SFPScan` в FIFO (быстрый+идемпотентный → ловит горячую вставку).
-- `scripts/rc.soc.sfpscan`: rc.soc с `SFPScan dump` вместо хардкод-форса 10G.
+- `scripts/rc.soc`: rc.soc с `SFPScan xe0-xe47 dump`, без `an=on` (порты стартуют в 10G).
 
 ## Применить
 Из корня SDK (`work/bcm/sdk-xgs-robo-6.3.2`):
 ```
-patch -p1 < <репо>/patches/sfpscan.patch        # или: git apply <...>/patches/sfpscan.patch
+patch -p1 < <репо>/patches/sfpscan.patch
+patch -p1 < <репо>/patches/xfifix.patch
 ```
 
 ## Собрать
@@ -33,9 +40,8 @@ patch -p1 < <репо>/patches/sfpscan.patch        # или: git apply <...>/pa
 cd systems/linux/user/gto-2_6
 make bcm user BUILD_PLATFORM=ELDK ELDK_VERSION=4.2 CROSS_COMPILE=ppc_85xxDP-
 ```
-Готовый бинарь (оба фикса): `bins/bcm.user.sfpscan-ledfix.gz`.
+Готовый бинарь (все патчи): `bins/bcm.user.current.gz` (md5 в `bins/bcm.user.current.md5`).
 
 ## Деплой (нужен SSH, 40МБ)
-`scp` на коробку → `/var/bcm/bcm.user`; rc.soc со `SFPScan` — `scripts/rc.soc.sfpscan`.
-Проверка LED после деплоя: воткнуть трансивер в cage 17/21 → диод совпадает с номером разъёма.
+См. `RUNBOOK-deploy.md` в корне репо.
 Блокеры SFPScan до прод-промоута — см. memory/[[gigamon-ta100-sfpscan]] (скорость скана, флейк real-IRQ).
