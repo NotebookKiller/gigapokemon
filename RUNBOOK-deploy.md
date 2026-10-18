@@ -21,6 +21,7 @@ cd /home/alexander_getman/claude-gigamon
 | `scripts/box-fans.sh` | `/var/bcm/fans.sh` | тихие вентиляторы MAX6650 (на коробке та же логика без комментариев) |
 | `scripts/vlan.conf` | `/var/bcm/vlan.conf` | раскладка VLAN в номерах клеток (пустой = всё в VLAN 1) |
 | `scripts/vlan-gen.sh` | `/var/bcm/vlan-gen.sh` | vlan.conf → vlan.soc (diag-команды); box-start зовёт через `sh` |
+| `scripts/sw` | `/var/bcm/sw` | CLI: `sw ports / counters <клетка> / vlan [apply] / sfp [клетка] / raw <cmd>` |
 
 Откат бинаря: `bins/bcm.user.pre-xfifix.gz` (md5 `4040c9a7…`, без хотплаг-фикса).
 
@@ -92,6 +93,15 @@ ssh $B 'cd /var/bcm; sh vlan-gen.sh vlan.conf > vlan.soc && cat vlan.soc && echo
 ssh $B 'echo "vlan show" > /tmp/bcm.fifo; echo "pvlan show xe" > /tmp/bcm.fifo; sleep 2; tail -40 /tmp/bcmrun.log'
 ```
 Проверить генератор на хосте до заливки: `sh scripts/vlan-gen.sh scripts/vlan.conf`.
+
+## CLI sw
+
+```sh
+ssh $B 'cat > /var/bcm/sw' < scripts/sw && ssh $B 'chmod +x /var/bcm/sw'
+ssh $B /var/bcm/sw ports          # клетки, линк, скорость
+ssh $B /var/bcm/sw counters 48    # счётчики клетки 48
+ssh $B /var/bcm/sw vlan apply     # применить vlan.conf без ребута
+```
 
 ## Диагностика на ходу
 
