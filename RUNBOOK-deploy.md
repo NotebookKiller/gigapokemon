@@ -19,6 +19,8 @@ cd /home/alexander_getman/claude-gigamon
 | `scripts/box-leds.sh` | `/var/bcm/box-leds.sh` | LED-микрокод + карта панели + зеркала (17-20, 33-36) |
 | `scripts/box-boot.sh` | `/var/bcm/boot.sh` | сетевой watchdog (DHCP .133, учётка op) |
 | `scripts/box-fans.sh` | `/var/bcm/fans.sh` | тихие вентиляторы MAX6650 (на коробке та же логика без комментариев) |
+| `scripts/vlan.conf` | `/var/bcm/vlan.conf` | раскладка VLAN в номерах клеток (пустой = всё в VLAN 1) |
+| `scripts/vlan-gen.sh` | `/var/bcm/vlan-gen.sh` | vlan.conf → vlan.soc (diag-команды); box-start зовёт через `sh` |
 
 Откат бинаря: `bins/bcm.user.pre-xfifix.gz` (md5 `4040c9a7…`, без хотплаг-фикса).
 
@@ -75,6 +77,21 @@ ssh $B 'md5sum /var/bcm/bcm.user | cut -c1-8; pidof bcm.user; grep -c BOX_INIT_D
 ```
 Ожидаем: md5 `27ec25cf`, `BOX_INIT_DONE`=1, в логе `[led]` и `[hotplug]`, LED CTRL = `0xB3`/`0xF3`
 (бит0=1 — процессор запущен), up только порты с модулями. Глазами: диоды = клетки с линком.
+
+## VLAN
+
+Раскладка — `/var/bcm/vlan.conf`, номера клеток как на панели (формат и пример — в самом файле).
+При загрузке box-start делает `vlan-gen.sh vlan.conf > vlan.soc`, rc.soc подгружает его `rcload`.
+Ошибка в vlan.conf → в box-start.log строка `[vlan] ОШИБКА…`, свитч остаётся плоским (VLAN 1).
+
+```sh
+# залить раскладку и применить НА ХОДУ (без ребута; vlan.soc идемпотентен)
+ssh $B 'cat > /var/bcm/vlan.conf' < scripts/vlan.conf
+ssh $B 'cd /var/bcm; sh vlan-gen.sh vlan.conf > vlan.soc && cat vlan.soc && echo "rcload /var/bcm/vlan.soc" > /tmp/bcm.fifo'
+# проверить
+ssh $B 'echo "vlan show" > /tmp/bcm.fifo; echo "pvlan show xe" > /tmp/bcm.fifo; sleep 2; tail -40 /tmp/bcmrun.log'
+```
+Проверить генератор на хосте до заливки: `sh scripts/vlan-gen.sh scripts/vlan.conf`.
 
 ## Диагностика на ходу
 

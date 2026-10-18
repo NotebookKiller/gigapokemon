@@ -12,6 +12,8 @@ port xe enable=true stp=forward
 # Порты, уже имеющие нужную скорость, НЕ трогает (линк не дёргается). 'dump' печатает
 # ключевые байты SFF-8472 (id/b3/b6/b8/b12) в лог для диагностики.
 SFPScan xe0-xe47 dump
+# VLAN-раскладка: vlan.soc генерирует box-start из vlan.conf (vlan-gen.sh). Пустой = всё в VLAN 1.
+rcload /var/bcm/vlan.soc
 linkscan 250000
 port xe linkscan=on
 # Счётчики портов (2026-10-17): в config bcm_stat_interval=0 (так init стабильнее под real-IRQ),
