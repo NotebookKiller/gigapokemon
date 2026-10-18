@@ -33,6 +33,8 @@ FIFO=/tmp/bcm.fifo
 HOLDER_SLEEP=2147483647
 INIT_TIMEOUT=90          # ждать BOX_INIT_DONE; init soc+misc+bcm на 52 портах ~40-70s
 
+# Ротация (2026-10-18): /tmp -> /var/root/tmp, это раздел VAR (771M, был заполнен на 91%).
+[ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 262144 ] && mv -f "$LOG" "$LOG.1"
 exec >>"$LOG" 2>&1
 echo "================ box-start $(date) ================"
 
@@ -105,7 +107,10 @@ fi
 # держатель write-end: живёт вечно, переживает завершение этого скрипта (reparent к init)
 sleep "$HOLDER_SLEEP" > "$FIFO" &
 HOLDER=$!
-setsid script -f -c "$BCM/bcm.user" "$BCMLOG" < "$FIFO" > /dev/null 2>&1 &
+# ulimit -c 0: core-дамп bcm.user (~40МБ) лёг бы в /var/bcm и забил VAR.
+# script -a: лог открыт с O_APPEND -> поллер ниже может безопасно обрезать его на ходу.
+ulimit -c 0
+setsid script -a -f -c "$BCM/bcm.user" "$BCMLOG" < "$FIFO" > /dev/null 2>&1 &
 echo "[run] bcm.user под script/pty, holder pid=$HOLDER, FIFO=$FIFO; жду BOX_INIT_DONE до ${INIT_TIMEOUT}s"
 
 # 4) ПОЗИТИВНЫЙ критерий: ждём маркер BOX_INIT_DONE. -------------------------
@@ -170,6 +175,8 @@ fi
 ( while sleep 20; do
     pidof bcm.user >/dev/null 2>&1 && [ -p "$FIFO" ] || exit 0
     echo "SFPScan xe0-xe47" > "$FIFO" 2>/dev/null || exit 0
+    # ротация bcmrun.log (~400КБ/сутки от этого поллера): >1МБ -> копия в .1, основной обнулить
+    if [ "$(wc -c < "$BCMLOG")" -gt 1048576 ]; then cp -f "$BCMLOG" "$BCMLOG.1"; : > "$BCMLOG"; fi
   done ) &
 echo "[hotplug] периодический SFPScan (каждые 20с) запущен (pid $!)."
 exit 0
