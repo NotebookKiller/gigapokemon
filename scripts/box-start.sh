@@ -82,7 +82,7 @@ for s in linux-bcm-knet linux-uk-proxy linux-user-bde linux-kernel-bde; do /etc/
 sleep 2
 for s in linux-kernel-bde linux-user-bde linux-uk-proxy linux-bcm-knet; do /etc/rc.d/init.d/$s start >/dev/null 2>&1; done
 sleep 3
-echo "[bde] IRQ23: $(awk '/^ *23:/{print $2\" ints\"}' /proc/interrupts)  user-bde: $([ -e /dev/linux-user-bde ] && echo ok || echo НЕТ)"
+echo "[bde] IRQ23: $(awk '/^ *23:/{print $2 " ints"}' /proc/interrupts)  user-bde: $([ -e /dev/linux-user-bde ] && echo ok || echo НЕТ)"
 if [ ! -e /dev/linux-user-bde ]; then echo "[abort] нет /dev/linux-user-bde после reload (pm заморож., reboot -f)"; exit 1; fi
 
 # 3) Поднять bcm.user демоном под PTY (script -f) со stdin из FIFO ----------
@@ -119,6 +119,12 @@ done
 
 if [ "$ok" != 1 ]; then
   echo "[fail] нет BOX_INIT_DONE за ${INIT_TIMEOUT}s -> init завис/флейкнул (real-IRQ flake)."
+  # Лог провала сохраняем (2026-10-18): иначе следующая загрузка его затрёт и не видно, где висло.
+  mkdir -p "$BCM/faillogs"
+  cp "$BCMLOG" "$BCM/faillogs/bcmrun-$(date +%m%d-%H%M%S).log" 2>/dev/null
+  ls -t "$BCM"/faillogs/bcmrun-*.log 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+  echo "[fail] последние строки bcmrun.log (копия в $BCM/faillogs/):"
+  tr -d '\r' < "$BCMLOG" | grep -v '^$' | tail -n 6 | sed 's/^/[fail]   | /'
   kill -9 $(pidof bcm.user) $(pidof script) $HOLDER 2>/dev/null
   rm -f "$FIFO"
   # АВТО-РЕТРАЙ флейка real-IRQ (2026-10-05): init флейкует ~1/2-1/3 (виснет после init soc,
