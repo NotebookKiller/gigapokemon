@@ -1,8 +1,14 @@
 set rcerror=false
+# Метки этапов (2026-10-18): флейк init висит в одном из тихих шагов ниже — метка покажет, в каком.
+echo "RC: init soc"
 init soc
+echo "RC: init misc"
 init misc
+echo "RC: init mmu"
 init mmu
+echo "RC: init bcm"
 init bcm
+echo "RC: init done"
 # БЕЗ an=on (2026-10-16): an=on уводил порты в 1G, а обратный переход 1G->10G на WC6+ (клетки 25-48)
 # не проходит (MAC Fault(Local)). Порты остаются в дефолтном 10G; SFPScan переводит в 1G только 1G-модули.
 port xe enable=true stp=forward
