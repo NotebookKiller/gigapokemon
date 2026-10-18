@@ -31,7 +31,12 @@ ARP на всех хостах (на ARP к шлюзу никто не отве�
    (box-start их зовёт); есть ли `ip` (iproute2/busybox) и `vconfig`; ABI стокового knet с нашим SDK
    (тот же вендорный 6.3.2 — ожидаемо совместим). Если стоковый модуль не подойдёт — собрать свой
    (`systems/linux/kernel/modules/bcm-knet`, заголовки ядра 2.6.34 — `work/khdr`).
-2. Пересобрать `bcm.user` с `BUILD_KNET=1`; `knet netif create` один интерфейс, `knet filter` —
+2. ✅ Собран `bins/bcm.user.knet.gz` (md5 `b051ec6c…`, 2026-10-18): все наши патчи + `knetctrl`.
+   Сборка — отдельный каталог: `make bcm … BLDCONFIG=knet FEATURE_LIST="L3 I2C BCMX BCMX_DIAG MEM_SCAN
+   EDITLINE RCPU OOB_RCPU CUSTOMER TEST CHASSIS CINT PTP BFD BHH CES KNET"` (перед линковкой
+   `mkdir -p build/knet/linux/user/gto-2_6`). На железе НЕ проверен: с KNET приём пакетов CPU идёт
+   через модуль ядра — проверить, что init и L2 не меняются, и откатываться на current при сбое.
+   Дальше: `knet netif create` один интерфейс, `knet filter` —
    ARP и кадры на router-MAC → в Linux; поднять IP, проверить ping шлюза из VLAN.
 3. Включить L3 на чипе для двух VLAN, вручную `l3 egress/l3table` для пары хостов — ping между VLAN
    аппаратно (CPU не грузится — проверить счётчиками и `top`).
