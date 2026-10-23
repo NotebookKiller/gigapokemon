@@ -201,3 +201,8 @@ phy_long_xfi_44=1
 # меньше отъедает у unicast.
 bcm_stat_jumbo=16348
 buf.mqueue.pool_scale=0.5
+# Флейк init (пойман 23.10 стеками gdb): init misc -> clear_all_memory -> mem_slam ждал
+# IRQ TSLAM_DONE; если IRQ терялся, каждая очистка ждала 1с таймаута -> init >90с.
+# Решение: опрос флага DONE вместо IRQ (slam и table DMA).
+tslam_intr_enable=0
+tdma_intr_enable=0
