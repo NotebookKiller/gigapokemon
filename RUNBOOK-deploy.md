@@ -12,9 +12,10 @@ cd /home/alexander_getman/claude-gigamon
 
 | Репо | Коробка | Что это |
 |---|---|---|
-| `bins/bcm.user.current.gz` (md5 `b051ec6c…`) | `/var/bcm/bcm.user` | SDK-апп: SFPScan + LED-fix + fast-presence + xfifix + KNET |
-| `scripts/config.bcm` | `/var/bcm/config.bcm` | soc-свойства: портмап, PHY-адреса, phy_long_xfi |
-| `scripts/rc.soc` | `/var/bcm/rc.soc` | init: БЕЗ `an=on`, SFPScan `xe0-xe47` |
+| `bins/bcm.user.current.gz` (md5 `62807191…`) | `/var/bcm/bcm.user` | SDK-апп: SFPScan + LED-fix + fast-presence + xfifix + KNET + переключение режима PHY (repeater.patch) |
+| `scripts/config.bcm` | `/var/bcm/config.bcm.std` | soc-свойства: портмап, PHY-адреса, `phy_pcs_repeater=1`; QSFP 4×40G |
+| `scripts/config.bcm.breakout` | `/var/bcm/config.bcm.breakout` | то же, но QSFP 4×10G (гидра): головы Q1.1-Q4.4 = xe48-xe63. Активный — копия в `/var/bcm/config.bcm` (сейчас breakout) |
+| `scripts/rc.soc` | `/var/bcm/rc.soc` | init: БЕЗ `an=on`, SFPScan `xe0-xe47`, счётчики без DMA |
 | `scripts/box-start.sh` | `/var/bcm/box-start.sh` | автозапуск: заморозка pm, BDE, bcm.user, LED, хотплаг-поллер |
 | `scripts/box-leds.sh` | `/var/bcm/box-leds.sh` | LED-микрокод + карта панели + зеркала (17-20, 33-36) |
 | `scripts/box-boot.sh` | `/var/bcm/boot.sh` | сетевой watchdog (DHCP .133, учётка op) |
@@ -25,11 +26,18 @@ cd /home/alexander_getman/claude-gigamon
 | `scripts/l3d` | `/var/bcm/l3d` | L3-демон: KNET-шлюзы + соседи ядра → таблицы чипа; box-start зовёт через `sh` |
 | `scripts/sw` | `/var/bcm/sw` | CLI: `sw ports / counters <клетка> / vlan [apply] / sfp [клетка] / raw <cmd>` |
 
-Откат бинаря: `bins/bcm.user.pre-xfifix.gz` (md5 `4040c9a7…`, без хотплаг-фикса); без KNET — git-история current (27ec25cf), на коробке `bcm.user.bak-pre-knet`.
+Откат бинаря: на коробке `bcm.user.bak-pre-repeater` (b051ec6c, без переключения режима PHY — 10G без данных); `bins/bcm.user.pre-xfifix.gz` (md5 `4040c9a7…`, без хотплаг-фикса); без KNET — git-история current (27ec25cf), на коробке `bcm.user.bak-pre-knet`.
 
 ## Карта портов (24.10, как у стока)
 
 - **Клетка N = логический порт N = xe(N-1)** для всех 48 SFP-клеток; Q1-Q4 = xe48-51 (40G).
+- Режим гидры (config.bcm.breakout): Qk.l = xe(48+4(k-1)+l-1), т.е. Q1.1-Q1.4 = xe48-51 … Q4.4 = xe63.
+  `sw` и vlan.conf понимают имена `Q1.1`; режим определяется по `portmap_50=` в `/var/bcm/config.bcm`.
+  Переключить режим: `cp /var/bcm/config.bcm.std|breakout /var/bcm/config.bcm` + ребут (vlan.conf под режим!).
+- **10G-данные (24.10)**: PHY 84754/84740 обязан быть в режиме PCS-репитера (1.0xC806 |= 6), иначе
+  «линк up» без кадров (у соседа NO-CARRIER/LF). 1G-модули — только в обычном режиме PHY. Режим ставит
+  SFPScan по EEPROM модуля (лог `SFPScan xeN: PHY repeater|PCS mode`). TX-полярность — заводская 0x8400.
+- `shutdown <клетки>` в vlan.conf выключает порты: STP у нас нет, лишние линки к тому же свитчу = петля.
 - phys: клетки 1-16 = phys 1-16, клетки 17-48 = phys N+4 (phys 17-20 — резерв чипа).
 - PHY 84754: клетки 1-24 = адрес N+3, клетки 25-48 = N+11 (как в стоковом `config show`).
 - До 24.10 PHY-адреса 17-48 были сдвинуты на квад: PHY клетки N висел на чужой линии
@@ -78,7 +86,7 @@ ssh $B 'md5sum /var/bcm/bcm.user | cut -c1-8; pidof bcm.user; grep -c BOX_INIT_D
   printf "LED CTRL0=%s CTRL1=%s\n" $(busybox devmem 0xc0001000 32) $(busybox devmem 0xc0002000 32); \
   echo ps > /tmp/bcm.fifo; sleep 2; tail -60 /tmp/bcmrun.log | tr -d "\r" | grep -E "^ +xe[0-9]+ +up"'
 ```
-Ожидаем: md5 `b051ec6c`, `BOX_INIT_DONE`=1, в логе `[led]` и `[hotplug]`, LED CTRL = `0xB3`/`0xF3`
+Ожидаем: md5 `62807191`, `BOX_INIT_DONE`=1, в логе `[led]` и `[hotplug]`, LED CTRL = `0xB3`/`0xF3`
 (бит0=1 — процессор запущен), up только порты с модулями. Глазами: диоды = клетки с линком.
 
 ## VLAN
@@ -140,3 +148,5 @@ ssh $B 'touch /var/bcm/DISABLE; kill -9 $(pidof bcm.user) 2>/dev/null; sync; reb
 - Никогда не `kill -CONT pm` при мёртвом netdevd — ребутит/вешает коробку.
 - При замороженном pm обычный `reboot` не проходит — только `kill -9 bcm.user; sync; reboot -f`.
 - Крайнее средство — serial (`co:` bash в inittab) или питание.
+- `phy raw c45 <адрес>` с адресом > 0x7f (или мусором) — assertion в SDK, bcm.user падает (24.10).
+- «Линк up» у нас не значит линк у соседа: проверять на той стороне (ip link / tcpdump / диоды).

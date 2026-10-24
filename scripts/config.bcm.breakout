@@ -67,34 +67,34 @@ port_phy_addr_13=16
 port_phy_addr_14=17
 port_phy_addr_15=18
 port_phy_addr_16=19
-port_phy_addr_17=24
-port_phy_addr_18=25
-port_phy_addr_19=26
-port_phy_addr_20=27
-port_phy_addr_21=36
-port_phy_addr_22=37
-port_phy_addr_23=38
-port_phy_addr_24=39
-port_phy_addr_25=40
-port_phy_addr_26=41
-port_phy_addr_27=42
-port_phy_addr_28=43
-port_phy_addr_29=44
-port_phy_addr_30=45
-port_phy_addr_31=46
-port_phy_addr_32=47
-port_phy_addr_33=48
-port_phy_addr_34=49
-port_phy_addr_35=50
-port_phy_addr_36=51
-port_phy_addr_37=52
-port_phy_addr_38=53
-port_phy_addr_39=54
-port_phy_addr_40=55
-port_phy_addr_41=56
-port_phy_addr_42=57
-port_phy_addr_43=58
-port_phy_addr_44=59
+port_phy_addr_17=20
+port_phy_addr_18=21
+port_phy_addr_19=22
+port_phy_addr_20=23
+port_phy_addr_21=24
+port_phy_addr_22=25
+port_phy_addr_23=26
+port_phy_addr_24=27
+port_phy_addr_25=36
+port_phy_addr_26=37
+port_phy_addr_27=38
+port_phy_addr_28=39
+port_phy_addr_29=40
+port_phy_addr_30=41
+port_phy_addr_31=42
+port_phy_addr_32=43
+port_phy_addr_33=44
+port_phy_addr_34=45
+port_phy_addr_35=46
+port_phy_addr_36=47
+port_phy_addr_37=48
+port_phy_addr_38=49
+port_phy_addr_39=50
+port_phy_addr_40=51
+port_phy_addr_41=52
+port_phy_addr_42=53
+port_phy_addr_43=54
+port_phy_addr_44=55
 phy_84754_1=1
 phy_84754_2=1
 phy_84754_3=1
@@ -139,10 +139,10 @@ phy_84754_41=1
 phy_84754_42=1
 phy_84754_43=1
 phy_84754_44=1
-port_phy_addr_45=68
-port_phy_addr_46=69
-port_phy_addr_47=70
-port_phy_addr_48=71
+port_phy_addr_45=56
+port_phy_addr_46=57
+port_phy_addr_47=58
+port_phy_addr_48=59
 phy_84754_45=1
 phy_84754_46=1
 phy_84754_47=1
@@ -150,7 +150,30 @@ phy_84754_48=1
 miim_intr_enable=0
 schan_intr_enable=0
 bcm_stat_interval=0
-# --- QSFP breakout 4x10G (гидра). Адреса PHY по таблице стока: phys57-60->0x44.., 61->0x48, 65->0x4c, 69->0x50 ---
+# phy_long_xfi_21..44 УБРАН (24.10): драйвер 84740 ставит serdes в CR при ЛЮБОЙ скорости,
+# и на 1G Warpcore не ловил синхро с PHY (медный SFP: линк есть, данных нет).
+# Хотплаг 1G->10G он не лечил — это делает xfifix в SFPScan.
+# PHY-адреса 17-48 = как у стока (config show 24.10): логический порт N = клетка N
+# (клетки 17-48 = phys N+4). Прежняя таблица была сдвинута на квад: PHY клетки N
+# сидел на чужой линии Warpcore -> линк виден, данные не ходят.
+# Убирает конфликт 0x44 с QSFP xe49.
+# Стоковые дельты (2026-10-17, реверс netdevd): порог счётчика oversize =
+# джамбо (MTU и так 16356);
+# доля общего буфера MMU для multicast-очередей 0.5 (сток) — шторм
+# меньше отъедает у unicast.
+bcm_stat_jumbo=16348
+buf.mqueue.pool_scale=0.5
+# Флейк init (пойман 23.10 стеками gdb): init misc -> clear_all_memory -> mem_slam ждал
+# IRQ TSLAM_DONE; если IRQ терялся, каждая очистка ждала 1с таймаута -> init >90с.
+# Решение: опрос флага DONE вместо IRQ (slam и table DMA).
+tslam_intr_enable=0
+tdma_intr_enable=0
+# Как у стока: один module id на все 64 порта. Без него порты >=32 = modid 1 (dual-modid),
+# и l3table/egress требуют MOdule=1 Port=N-32 вместо xeN.
+module_64ports=1
+# --- Режим ГИДРЫ: QSFP breakout 4x10G, 16 логических портов 49-64 (xe48-xe63).
+# Q1=phys69-72 -> лог.49-52, Q2=57-60 -> 53-56, Q3=65-68 -> 57-60, Q4=61-64 -> 61-64.
+# PHY-адреса лэйнов по таблице стока (phys57->0x44, 61->0x48, 65->0x4c, 69->0x50, +1 на лэйн).
 pbmp_xport_xe=0x1fffffffffffffffe
 portmap_49=69:10
 port_phy_addr_49=80
@@ -200,3 +223,13 @@ phy_84740_63=1
 portmap_64=64:10
 port_phy_addr_64=75
 phy_84740_64=1
+# 10G ДАННЫЕ (24.10): PHY 84754/84740 в режиме
+# PCS-репитера (1.0xC806 |= 6), как сток для QSFP.
+# Иначе XFI-сторона PHY не держит block lock с
+# Warpcore: линк есть, кадров нет. 1G-модули же
+# работают только в обычном режиме PHY -> SFPScan
+# переключает режим по типу модуля (и при хотплаге).
+# Линк/скорость в этом режиме даёт Warpcore.
+# TX-полярность заводская (1.0xCD08=0x8400): 1G без
+# неё не работает, а репитеру она не мешает.
+phy_pcs_repeater=1

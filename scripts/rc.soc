@@ -23,6 +23,8 @@ rcload /var/bcm/vlan.soc
 linkscan 250000
 port xe linkscan=on
 # Счётчики портов (2026-10-17): в config bcm_stat_interval=0 (так init стабильнее под real-IRQ),
-# поэтому сбор включаем уже после init — как сток, раз в 3с с DMA. Без этого `show c` пустой.
-counter Interval=3000000 PortBitMap=xe DMA=true
+# поэтому сбор включаем уже после init — как сток, раз в 3с. Без этого `show c` пустой.
+# DMA=false (24.10): в режиме гидры (64 порта) DMA-сбор падает «DMA did not finish» -> поток
+# счётчиков умирает; без DMA работает в обоих режимах.
+counter Interval=3000000 PortBitMap=xe DMA=false
 echo "BOX_INIT_DONE"

@@ -1,0 +1,53 @@
+--- a/src/appl/diag/port.c	2026-10-24 19:11:27.988490185 +0300
++++ b/src/appl/diag/port.c	2026-10-24 19:25:55.277523236 +0300
+@@ -10921,7 +10921,7 @@
+     }
+ 
+     SOC_PBMP_ITER(pbm, port) {
+-        int id, b3, b6, b8, b12, want = 0, an = 0, cur = 0;
++        int id, b3, b6, b8, b12, want = 0, an = 0, cur = 0, mode_changed;
+ 
+         /* Clear buffer first: phy_84740_i2cdev_read() returns SOC_E_NONE even
+          * when the I2C transaction does NOT complete (no module / NAK), and in
+@@ -10963,8 +10963,29 @@
+             continue;
+         }
+ 
++        /* TA100 84754/84740 with phy_pcs_repeater: 10G data only passes in PCS
++         * repeater mode (1.0xC806 bits 1-2), 1G modules only in normal PCS
++         * mode -> switch the PHY mode by module type (also on hot-plug). */
++        mode_changed = 0;
++        if (PHY_FLAGS_TST(unit, port, PHY_FLAGS_REPEATER)) {
++            uint32 mreg = BCM_PORT_PHY_CLAUSE45_ADDR(1, 0xc806);
++            uint32 m = 0, nm;
++            if (bcm_port_phy_get(unit, port, BCM_PORT_PHY_CLAUSE45,
++                                 mreg, &m) == BCM_E_NONE) {
++                nm = (want == 10000) ? (m | 0x6) : (m & ~0x6);
++                if (nm != m) {
++                    rv = bcm_port_phy_set(unit, port, BCM_PORT_PHY_CLAUSE45,
++                                          mreg, nm);
++                    printk("SFPScan %s: PHY %s mode (0xc806 %04x->%04x) rv=%d\n",
++                           SOC_PORT_NAME(unit, port),
++                           (want == 10000) ? "repeater" : "PCS", m, nm, rv);
++                    mode_changed = 1;
++                }
++            }
++        }
++
+         (void)bcm_port_speed_get(unit, port, &cur);
+-        if (cur == want) {
++        if (cur == want && !mode_changed) {
+             continue;               /* already correct; don't bounce link */
+         }
+ 
+@@ -10972,7 +10993,9 @@
+         if (!an) {
+             rv |= bcm_port_speed_set(unit, port, want);
+         }
+-        if (want == 10000) {
++        /* PCS repeater (phy_pcs_repeater): the Warpcore does the PCS itself and
++         * the AN bit drops its lane to 1G -> xfifix only for normal PHY mode. */
++        if (want == 10000 && !PHY_FLAGS_TST(unit, port, PHY_FLAGS_REPEATER)) {
+             /* TA100: after 1G, forced 10G_XFI on the Warpcore lane does not
+              * lock on some cages (25-48, 19: long XFI to the 84754) -> MAC
+              * Fault(Local). Re-enabling the lane's IEEE autoneg bit (int MII

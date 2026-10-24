@@ -10,6 +10,7 @@
 #   sw raw <diag-команда> любая diag-команда BCM, ответ — в stdout
 #
 # Карта клетка <-> порт (24.10, как у стока): клетка N = xe(N-1) для 1-48, Q1-Q4 = xe48-51.
+# Режим гидры (config.bcm с portmap_50): головы Q1.1-Q4.4 = xe48-xe63, Qk.l = xe(48+4(k-1)+l-1).
 
 BCM=${BCM:-/var/bcm}
 FIFO=${FIFO:-/tmp/bcm.fifo}
@@ -17,17 +18,20 @@ LOG=${LOG:-/tmp/bcmrun.log}
 TIMEOUT=${TIMEOUT:-10}
 
 die() { echo "sw: $*" >&2; exit 1; }
+BO=0; grep -q '^portmap_50=' "${BCMCFG:-$BCM/config.bcm}" 2>/dev/null && BO=1
 
 cage2xe() {   # $1 = клетка -> xeN (или пусто)
     case "$1" in
-        [Qq][1-4]) echo "xe$((47 + ${1#?}))" ;;
+        [Qq][1-4].[1-4]) [ "$BO" = 1 ] && k=${1#?} && echo "xe$((48 + 4 * (${k%.*} - 1) + ${k#*.} - 1))" ;;
+        [Qq][1-4]) [ "$BO" = 0 ] && echo "xe$((47 + ${1#?}))" ;;
         *[!0-9]*|'') ;;
         *) [ "$1" -ge 1 ] && [ "$1" -le 48 ] && echo "xe$(($1 - 1))" ;;
     esac
 }
 
 # awk-функция xe -> клетка, для вывода
-XE2CAGE='function cage(x) { x += 0; if (x <= 47) return x + 1; return "Q" (x - 47) }'
+XE2CAGE='function cage(x) { x += 0; if (x <= 47) return x + 1
+    if ('"$BO"') return "Q" int((x - 48) / 4) + 1 "." (x - 48) % 4 + 1; return "Q" (x - 47) }'
 
 # bcm <команда...>: отправить в bcm.user, дождаться ответа, напечатать его (без эха и \r)
 bcm() {
@@ -50,7 +54,7 @@ cmd_ports() {
         $1 ~ /^xe[0-9]+$/ { n = substr($1, 3); st[n] = $2; sp[n] = $3; an[n] = $6; have[n] = 1 }
         END {
             printf "%-6s %-6s %-6s %-5s %s\n", "клетка", "порт", "линк", "скор", "an"
-            for (i = 0; i <= 51; i++) if (i in have) row(i)
+            for (i = 0; i <= 63; i++) if (i in have) row(i)
         }
         function row(i) { printf "%-6s %-6s %-6s %-5s %s\n", cage(i), "xe" i, st[i], sp[i], an[i] }'
 }
@@ -81,7 +85,7 @@ cmd_sfp() {
         x=$(cage2xe "$1"); [ -n "$x" ] || die "нет клетки $1"
         bcm "SFPScan $x dump"
     else
-        bcm "SFPScan xe0-xe47 dump" "SFPScan xe48-xe51 dump"
+        bcm "SFPScan xe0-xe47 dump" "SFPScan xe48-xe$([ "$BO" = 1 ] && echo 63 || echo 51) dump"
     fi | awk "$XE2CAGE"'
         /^SFPScan xe[0-9]+:/ { split($2, a, ":"); x = substr(a[1], 3); sub(/^SFPScan xe[0-9]+:/, "клетка " cage(x) " (xe" x "):") }
         { print }'

@@ -97,7 +97,7 @@ rm -f "$FIFO"; mkfifo "$FIFO" || { echo "[abort] mkfifo — остаюсь на 
 # VLAN (2026-10-18): vlan.conf (клетки панели) -> vlan.soc, его подгружает rc.soc (rcload).
 # Нет vlan.conf или в нём ошибка -> пустой vlan.soc = все порты в VLAN 1 (свитч работает плоско).
 rm -f /tmp/vlan-gen.err
-if [ -r "$BCM/vlan.conf" ] && sh "$BCM/vlan-gen.sh" "$BCM/vlan.conf" > "$BCM/vlan.soc.new" 2> /tmp/vlan-gen.err; then
+if [ -r "$BCM/vlan.conf" ] && VLAN_GEN_BOOT=1 sh "$BCM/vlan-gen.sh" "$BCM/vlan.conf" > "$BCM/vlan.soc.new" 2> /tmp/vlan-gen.err; then
   mv "$BCM/vlan.soc.new" "$BCM/vlan.soc"
   echo "[vlan] vlan.soc из vlan.conf: $(grep -c '^vlan create' "$BCM/vlan.soc") VLAN кроме 1"
 else

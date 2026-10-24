@@ -21,6 +21,12 @@ SDK: **sdk-xgs-robo-6.3.2**, таргет `systems/linux/user/gto-2_6` (BCM56840
 XFI-трассой (19, 25-48) не ловится → MAC Fault(Local), хотплаг 1G→10G только через ребут.
 Запись идёт через `BCM_PORT_PHY_REG_INDIRECT_ADDR` — прямой адрес уходит в MDIO без AER (на lane 0).
 
+## repeater.patch (поверх xfifix.patch, 24.10)
+`src/appl/diag/port.c`, SFPScan, для `phy_pcs_repeater=1` в config: 10G-данные через PHY 84754/84740
+идут только в режиме PCS-репитера (PMA/PMD 1.0xC806 |= 6), а 1G-модули работают только в обычном
+режиме -> SFPScan переключает режим PHY по типу модуля (и при хотплаге) и не делает xfifix на таких
+портах (бит AN уводит линию Warpcore в 1G). До этого 10G давал «линк up» без единого кадра.
+
 ## Сопутствующие правки (вне SDK, в scripts/)
 - `scripts/box-start.sh`: (а) **авто-ретрай** флейка real-IRQ — при отсутствии BOX_INIT_DONE
   `reboot -f` с капом 3 (счётчик в /var/bcm/.boxstart_retries, сброс при успехе); (б) **хот-плаг** —
@@ -32,6 +38,7 @@ XFI-трассой (19, 25-48) не ловится → MAC Fault(Local), хот�
 ```
 patch -p1 < <репо>/patches/sfpscan.patch
 patch -p1 < <репо>/patches/xfifix.patch
+patch -p1 < <репо>/patches/repeater.patch
 ```
 
 ## Собрать
