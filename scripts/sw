@@ -9,7 +9,7 @@
 #   sw sfp [клетка]       EEPROM SFP (SFPScan dump): тип модуля, DAC/оптика
 #   sw raw <diag-команда> любая diag-команда BCM, ответ — в stdout
 #
-# Карта клетка <-> порт: 1-16=xe0-15, 17-20=xe44-47, 21-48=xe16-43, Q1-Q4=xe48-51.
+# Карта клетка <-> порт (24.10, как у стока): клетка N = xe(N-1) для 1-48, Q1-Q4 = xe48-51.
 
 BCM=${BCM:-/var/bcm}
 FIFO=${FIFO:-/tmp/bcm.fifo}
@@ -22,16 +22,12 @@ cage2xe() {   # $1 = клетка -> xeN (или пусто)
     case "$1" in
         [Qq][1-4]) echo "xe$((47 + ${1#?}))" ;;
         *[!0-9]*|'') ;;
-        *) if   [ "$1" -ge 1 ]  && [ "$1" -le 16 ]; then echo "xe$(($1 - 1))"
-           elif [ "$1" -ge 17 ] && [ "$1" -le 20 ]; then echo "xe$(($1 + 27))"
-           elif [ "$1" -ge 21 ] && [ "$1" -le 48 ]; then echo "xe$(($1 - 5))"
-           fi ;;
+        *) [ "$1" -ge 1 ] && [ "$1" -le 48 ] && echo "xe$(($1 - 1))" ;;
     esac
 }
 
 # awk-функция xe -> клетка, для вывода
-XE2CAGE='function cage(x) { x += 0; if (x <= 15) return x + 1; if (x <= 43) return x + 5;
-                            if (x <= 47) return x - 27; return "Q" (x - 47) }'
+XE2CAGE='function cage(x) { x += 0; if (x <= 47) return x + 1; return "Q" (x - 47) }'
 
 # bcm <команда...>: отправить в bcm.user, дождаться ответа, напечатать его (без эха и \r)
 bcm() {
@@ -54,10 +50,7 @@ cmd_ports() {
         $1 ~ /^xe[0-9]+$/ { n = substr($1, 3); st[n] = $2; sp[n] = $3; an[n] = $6; have[n] = 1 }
         END {
             printf "%-6s %-6s %-6s %-5s %s\n", "клетка", "порт", "линк", "скор", "an"
-            for (i = 0; i <= 15; i++) if (i in have) row(i)
-            for (i = 44; i <= 47; i++) if (i in have) row(i)
-            for (i = 16; i <= 43; i++) if (i in have) row(i)
-            for (i = 48; i <= 51; i++) if (i in have) row(i)
+            for (i = 0; i <= 51; i++) if (i in have) row(i)
         }
         function row(i) { printf "%-6s %-6s %-6s %-5s %s\n", cage(i), "xe" i, st[i], sp[i], an[i] }'
 }

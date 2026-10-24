@@ -15,8 +15,7 @@
 # Выход идемпотентен: сначала всё возвращается в VLAN 1, потом раскладка применяется заново,
 # так что тот же vlan.soc можно повторно загрузить на живом свитче.
 #
-# Карта клетка -> порт (итог 2026-10-16/17, см. RUNBOOK-deploy.md):
-#   клетки 1-16 = xe0-15, 17-20 = xe44-47 (phys 49-52), 21-48 = xe16-43, Q1-Q4 = xe48-51.
+# Карта клетка -> порт (24.10, как у стока): клетка N = xe(N-1) для 1-48, Q1-Q4 = xe48-51.
 
 CONF=${1:-/var/bcm/vlan.conf}
 [ -r "$CONF" ] || { echo "vlan-gen: нет файла $CONF" >&2; exit 1; }
@@ -26,16 +25,12 @@ function cage2xe(c,   n) {
     if (c ~ /^[Qq][1-4]$/) return 47 + substr(c, 2)
     if (c !~ /^[0-9]+$/) return -1
     n = c + 0
-    if (n >= 1  && n <= 16) return n - 1
-    if (n >= 17 && n <= 20) return n + 27
-    if (n >= 21 && n <= 48) return n - 5
+    if (n >= 1 && n <= 48) return n - 1
     return -1
 }
 function xe2cage(x) {
     x += 0
-    if (x <= 15) return x + 1
-    if (x <= 43) return x + 5
-    if (x <= 47) return x - 27
+    if (x <= 47) return x + 1
     return "Q" (x - 47)
 }
 # "1-12,48,Q1" -> через запятую номера xe; ошибка -> die

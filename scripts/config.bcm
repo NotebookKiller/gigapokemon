@@ -72,34 +72,34 @@ port_phy_addr_13=16
 port_phy_addr_14=17
 port_phy_addr_15=18
 port_phy_addr_16=19
-port_phy_addr_17=24
-port_phy_addr_18=25
-port_phy_addr_19=26
-port_phy_addr_20=27
-port_phy_addr_21=36
-port_phy_addr_22=37
-port_phy_addr_23=38
-port_phy_addr_24=39
-port_phy_addr_25=40
-port_phy_addr_26=41
-port_phy_addr_27=42
-port_phy_addr_28=43
-port_phy_addr_29=44
-port_phy_addr_30=45
-port_phy_addr_31=46
-port_phy_addr_32=47
-port_phy_addr_33=48
-port_phy_addr_34=49
-port_phy_addr_35=50
-port_phy_addr_36=51
-port_phy_addr_37=52
-port_phy_addr_38=53
-port_phy_addr_39=54
-port_phy_addr_40=55
-port_phy_addr_41=56
-port_phy_addr_42=57
-port_phy_addr_43=58
-port_phy_addr_44=59
+port_phy_addr_17=20
+port_phy_addr_18=21
+port_phy_addr_19=22
+port_phy_addr_20=23
+port_phy_addr_21=24
+port_phy_addr_22=25
+port_phy_addr_23=26
+port_phy_addr_24=27
+port_phy_addr_25=36
+port_phy_addr_26=37
+port_phy_addr_27=38
+port_phy_addr_28=39
+port_phy_addr_29=40
+port_phy_addr_30=41
+port_phy_addr_31=42
+port_phy_addr_32=43
+port_phy_addr_33=44
+port_phy_addr_34=45
+port_phy_addr_35=46
+port_phy_addr_36=47
+port_phy_addr_37=48
+port_phy_addr_38=49
+port_phy_addr_39=50
+port_phy_addr_40=51
+port_phy_addr_41=52
+port_phy_addr_42=53
+port_phy_addr_43=54
+port_phy_addr_44=55
 phy_84754_1=1
 phy_84754_2=1
 phy_84754_3=1
@@ -144,10 +144,10 @@ phy_84754_41=1
 phy_84754_42=1
 phy_84754_43=1
 phy_84754_44=1
-port_phy_addr_45=20
-port_phy_addr_46=21
-port_phy_addr_47=22
-port_phy_addr_48=23
+port_phy_addr_45=56
+port_phy_addr_46=57
+port_phy_addr_47=58
+port_phy_addr_48=59
 phy_84754_45=1
 phy_84754_46=1
 phy_84754_47=1
@@ -166,9 +166,9 @@ phy_84740_61=1
 # phy_long_xfi_21..44 УБРАН (24.10): драйвер 84740 ставит serdes в CR при ЛЮБОЙ скорости,
 # и на 1G Warpcore не ловил синхро с PHY (медный SFP: линк есть, данных нет).
 # Хотплаг 1G->10G он не лечил — это делает xfifix в SFPScan.
-# cage1720 (2026-10-16): гипотеза клетки 17-20 = phys 49-52 через PHY 20-23 (MDIO-скан:
-# живые, никому не назначены).
-# Сток тоже держит logical 45-48 -> phys 49-52 и обслуживает все 48 клеток.
+# PHY-адреса 17-48 = как у стока (config show 24.10): логический порт N = клетка N
+# (клетки 17-48 = phys N+4). Прежняя таблица была сдвинута на квад: PHY клетки N
+# сидел на чужой линии Warpcore -> линк виден, данные не ходят.
 # Убирает конфликт 0x44 с QSFP xe49.
 # Стоковые дельты (2026-10-17, реверс netdevd): порог счётчика oversize =
 # джамбо (MTU и так 16356);
