@@ -11,11 +11,12 @@
 # UnknownL3DestToCpu=1 (неизвестные адреса — в Linux) и ip_forward=1.
 # Синхронизация: соседи ядра на vlan<vid> -> порт по L2-таблице чипа -> `l3 l3table add`;
 # пропавшие соседи -> `l3 l3table destroy`; `route` -> ip route + `l3 defip add` через MAC шлюза.
+# Сравнение идёт с РЕАЛЬНОЙ таблицей чипа (l3 l3table show), а не со своим файлом состояния:
+# так демон сам чинит расхождения (ручная очистка, перезапуск bcm.user и т.п.).
 
 BCM=${BCM:-/var/bcm}
 CONF=${L3CONF:-$BCM/l3.conf}
 SW="sh $BCM/sw"
-STATE=${STATE:-/tmp/l3d.state}       # ip mac intf mod port — то, что сейчас в чипе
 PERIOD=${PERIOD:-2}
 REINIT=${REINIT:-30}                 # раз в столько секунд повторить идемпотентную инициализацию
 
@@ -64,11 +65,17 @@ l2_dump() {
         if (m != "" && p != "") print tolower(m), v, mod, p }'
 }
 
+# L3 host-таблица чипа: "ip mac intf mod port"
+l3_dump() {
+    $SW raw "l3 l3table show" | awk '$3 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ {print $3, tolower($4), $5, $6, $7}'
+}
+
 sync_once() {
-    want=/tmp/l3d.want; l2=/tmp/l3d.l2
+    want=/tmp/l3d.want; l2=/tmp/l3d.l2; have=/tmp/l3d.have
     l2_dump > "$l2"
+    l3_dump > "$have"
     : > "$want"
-    vids=$(conf_l3 | awk '{print $1}')
+    vids=$(conf_l3 | awk '{printf "%s ", $1}')
     for vid in $vids; do
         ip neigh show dev "vlan$vid" 2>/dev/null | awk -v vid="$vid" '
             $2 == "lladdr" && $NF ~ /REACHABLE|STALE|DELAY|PROBE|PERMANENT/ {print $1, tolower($3), vid}'
@@ -76,20 +83,19 @@ sync_once() {
         mp=$(awk -v m="$mac" -v v="$vid" '$1 == m && $2 == v {print $3, $4; exit}' "$l2")
         [ -n "$mp" ] && echo "$ip $mac $vid $mp" >> "$want"   # MAC ещё не в L2 -> подождём
     done
-    touch "$STATE"
     # добавить новые/изменившиеся
     while read ip mac vid mod port; do
-        grep -qx "$ip $mac $vid $mod $port" "$STATE" && continue
+        grep -qx "$ip $mac $vid $mod $port" "$have" && continue
         $SW raw "l3 l3table add IP=$ip Mac=$mac INtf=$vid MOdule=$mod Port=$port Replace=true" >/dev/null
         log "host $ip -> $mac vlan $vid mod $mod port $port"
     done < "$want"
-    # убрать пропавшие
+    # убрать пропавшие (только из сетей наших l3-VLAN)
     while read ip mac vid mod port; do
         grep -q "^$ip " "$want" && continue
+        echo " $vids " | grep -q " $vid " || continue
         $SW raw "l3 l3table destroy IP=$ip" >/dev/null
         log "host $ip удалён"
-    done < "$STATE"
-    cp "$want" "$STATE"
+    done < "$have"
     # маршруты: next-hop должен быть уже в таблице хостов
     conf_route | while read pfx gw; do
         nh=$(grep "^$gw " "$want")

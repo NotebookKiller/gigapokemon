@@ -47,6 +47,9 @@ ARP на всех хостах (на ARP к шлюзу никто не отве�
    - АППАРАТНО: `l3 intf add Vlan= Mac=<MAC netif> INtf=`, `l2 add MACaddress=<тот же> Vlanid=0x.. PortBitMap=cpu
      STatic=true L3=true`, `l3 l3table add IP= Mac= INtf= MOdule=1 Port=<p-32>` → при ip_forward=0 ping
      h10→h20 10/10, KNET-счётчики не растут, HIT=y. Порты ≥32 — modid 1 (dual-modid): нужен module_64ports=1 как у стока.
+   ✅ iperf3 h10->h20 (DL380, медь 1G): через чип 941 Мбит/с в обе стороны, 0 retr, CPU свитча
+   не участвует (KNET-счётчики стоят, load 0.37); через Linux на P2020 (записи хостов убраны) —
+   178 Мбит/с, 424 retr, ~100 тыс. пакетов через KNET. l3d автоматизирует всё (scripts/l3d).
    Дальше: `knet netif create` один интерфейс, `knet filter` —
    ARP и кадры на router-MAC → в Linux; поднять IP, проверить ping шлюза из VLAN.
 3. Включить L3 на чипе для двух VLAN, вручную `l3 egress/l3table` для пары хостов — ping между VLAN
