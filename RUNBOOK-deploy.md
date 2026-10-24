@@ -21,6 +21,8 @@ cd /home/alexander_getman/claude-gigamon
 | `scripts/box-fans.sh` | `/var/bcm/fans.sh` | тихие вентиляторы MAX6650 (на коробке та же логика без комментариев) |
 | `scripts/vlan.conf` | `/var/bcm/vlan.conf` | раскладка VLAN в номерах клеток (пустой = всё в VLAN 1) |
 | `scripts/vlan-gen.sh` | `/var/bcm/vlan-gen.sh` | vlan.conf → vlan.soc (diag-команды); box-start зовёт через `sh` |
+| `scripts/l3.conf` | `/var/bcm/l3.conf` | L3: `l3 <vid> <ip/pfx>` (шлюзы), `route <pfx> via <gw>`; пустой = L3 выкл. |
+| `scripts/l3d` | `/var/bcm/l3d` | L3-демон: KNET-шлюзы + соседи ядра → таблицы чипа; box-start зовёт через `sh` |
 | `scripts/sw` | `/var/bcm/sw` | CLI: `sw ports / counters <клетка> / vlan [apply] / sfp [клетка] / raw <cmd>` |
 
 Откат бинаря: `bins/bcm.user.pre-xfifix.gz` (md5 `4040c9a7…`, без хотплаг-фикса); без KNET — git-история current (27ec25cf), на коробке `bcm.user.bak-pre-knet`.
@@ -93,6 +95,21 @@ ssh $B 'cd /var/bcm; sh vlan-gen.sh vlan.conf > vlan.soc && cat vlan.soc && echo
 ssh $B 'echo "vlan show" > /tmp/bcm.fifo; echo "pvlan show xe" > /tmp/bcm.fifo; sleep 2; tail -40 /tmp/bcmrun.log'
 ```
 Проверить генератор на хосте до заливки: `sh scripts/vlan-gen.sh scripts/vlan.conf`.
+
+## L3
+
+`l3d` стартует из box-start после init (лог `/tmp/l3d.log`). На каждый `l3 <vid> <ip/pfx>`:
+CPU в членах VLAN, KNET-интерфейс `vlan<vid>` + фильтр по VLAN, IP шлюза, `l3 intf add`
+(INtf = vid), MAC роутера в L2 с флагом L3; глобально `UnknownL3DestToCpu=1`, `ip_forward=1`.
+Цикл раз в 2 с: соседи ядра → порт по L2-таблице → `l3 l3table add`; раз в 30 с повтор
+инициализации (переживает `sw vlan apply`).
+
+```sh
+ssh $B 'sh /var/bcm/l3d status'          # что стоит в чипе
+ssh $B 'tail /tmp/l3d.log'
+# проверка, что маршрутизирует чип: при ip_forward=0 ping между VLAN идёт, HIT=y,
+# а счётчики /sys/class/net/vlan*/statistics/rx_packets не растут
+```
 
 ## CLI sw
 

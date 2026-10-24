@@ -1,0 +1,120 @@
+#!/bin/sh
+# === ЗАПУСКАЕТСЯ НА КОРОБКЕ: /var/bcm/l3d (busybox sh), стартует из box-start после init ===
+# L3-демон: Linux (KNET) — control-plane, чип — аппаратная маршрутизация.
+#
+#   l3d          инициализация по l3.conf + вечный цикл синхронизации (раз в $PERIOD с)
+#   l3d once     инициализация + один проход синхронизации (для отладки)
+#   l3d status   что установлено в чипе (l3 intf/l3table/defip)
+#
+# Инициализация на каждый `l3 <vid> <ip/pfx>`: CPU в члены VLAN, KNET netif vlan<vid> + фильтр
+# по VLAN, IP шлюза, `l3 intf add` (INtf=vid), MAC роутера в L2 с флагом L3; глобально
+# UnknownL3DestToCpu=1 (неизвестные адреса — в Linux) и ip_forward=1.
+# Синхронизация: соседи ядра на vlan<vid> -> порт по L2-таблице чипа -> `l3 l3table add`;
+# пропавшие соседи -> `l3 l3table destroy`; `route` -> ip route + `l3 defip add` через MAC шлюза.
+
+BCM=${BCM:-/var/bcm}
+CONF=${L3CONF:-$BCM/l3.conf}
+SW="sh $BCM/sw"
+STATE=${STATE:-/tmp/l3d.state}       # ip mac intf mod port — то, что сейчас в чипе
+PERIOD=${PERIOD:-2}
+REINIT=${REINIT:-30}                 # раз в столько секунд повторить идемпотентную инициализацию
+
+log() { echo "[l3d $(date +%T)] $*"; }
+
+# строки конфига без комментариев: "l3 vid ip/pfx" и "route pfx via gw"
+conf_l3()    { grep -E '^[[:space:]]*l3[[:space:]]' "$CONF" 2>/dev/null | awk '{print $2, $3}'; }
+conf_route() { grep -E '^[[:space:]]*route[[:space:]]' "$CONF" 2>/dev/null | awk '$3 == "via" {print $2, $4}'; }
+
+hexvid() { printf '0x%x' "$1"; }
+
+init_vlan() {   # $1 vid, $2 ip/pfx
+    vid=$1; addr=$2; ifn=vlan$vid
+    $SW raw "vlan add $vid PortBitMap=cpu" >/dev/null
+    if ! ip link show "$ifn" >/dev/null 2>&1; then
+        id=$($SW raw "knetctrl netif create Vlan=$vid IFName=$ifn" | sed -n 's/^Interface ID \([0-9]*\):.*/\1/p' | head -1)
+        [ -n "$id" ] || { log "ОШИБКА: knet netif для VLAN $vid не создан"; return 1; }
+        $SW raw "knetctrl filter create DestType=NetIF DestID=$id Vlan=$vid PRIOrity=0 DESCription=l3v$vid" >/dev/null
+        log "VLAN $vid: netif $ifn (id $id) + фильтр"
+    fi
+    ip addr show dev "$ifn" | grep -q " ${addr%/*}/" || ip addr add "$addr" dev "$ifn"
+    ip link set "$ifn" up
+    mac=$(cat /sys/class/net/$ifn/address)
+    # l3 intf: если уже есть с этим id — команда просто ругнётся, это нормально
+    $SW raw "l3 intf add Vlan=$vid Mac=$mac INtf=$vid" >/dev/null
+    $SW raw "l2 add MACaddress=$mac Vlanid=$(hexvid $vid) PortBitMap=cpu STatic=true L3=true Replace=true" >/dev/null
+}
+
+do_init() {
+    $SW raw "SwitchControl UnknownL3DestToCpu=1" >/dev/null
+    echo 1 > /proc/sys/net/ipv4/ip_forward
+    conf_l3 | while read vid addr; do init_vlan "$vid" "$addr"; done
+    conf_route | while read pfx gw; do ip route replace "$pfx" via "$gw" 2>/dev/null; done
+}
+
+# L2-таблица чипа: "mac vid mod port" (port — номер в модуле, как ждёт l3table add)
+l2_dump() {
+    $SW raw "l2 show" | awk '{
+        m=""; v=""; mod=""; p="";
+        for (i = 1; i <= NF; i++) {
+            if ($i ~ /^mac=/)   m = substr($i, 5)
+            if ($i ~ /^vlan=/)  v = substr($i, 6)
+            if ($i ~ /^modid=/) mod = substr($i, 7)
+            if ($i ~ /^port=/)  { p = substr($i, 6); sub(/\/.*/, "", p) }
+        }
+        if (m != "" && p != "") print tolower(m), v, mod, p }'
+}
+
+sync_once() {
+    want=/tmp/l3d.want; l2=/tmp/l3d.l2
+    l2_dump > "$l2"
+    : > "$want"
+    vids=$(conf_l3 | awk '{print $1}')
+    for vid in $vids; do
+        ip neigh show dev "vlan$vid" 2>/dev/null | awk -v vid="$vid" '
+            $2 == "lladdr" && $NF ~ /REACHABLE|STALE|DELAY|PROBE|PERMANENT/ {print $1, tolower($3), vid}'
+    done | while read ip mac vid; do
+        mp=$(awk -v m="$mac" -v v="$vid" '$1 == m && $2 == v {print $3, $4; exit}' "$l2")
+        [ -n "$mp" ] && echo "$ip $mac $vid $mp" >> "$want"   # MAC ещё не в L2 -> подождём
+    done
+    touch "$STATE"
+    # добавить новые/изменившиеся
+    while read ip mac vid mod port; do
+        grep -qx "$ip $mac $vid $mod $port" "$STATE" && continue
+        $SW raw "l3 l3table add IP=$ip Mac=$mac INtf=$vid MOdule=$mod Port=$port Replace=true" >/dev/null
+        log "host $ip -> $mac vlan $vid mod $mod port $port"
+    done < "$want"
+    # убрать пропавшие
+    while read ip mac vid mod port; do
+        grep -q "^$ip " "$want" && continue
+        $SW raw "l3 l3table destroy IP=$ip" >/dev/null
+        log "host $ip удалён"
+    done < "$STATE"
+    cp "$want" "$STATE"
+    # маршруты: next-hop должен быть уже в таблице хостов
+    conf_route | while read pfx gw; do
+        nh=$(grep "^$gw " "$want")
+        if [ -z "$nh" ]; then ping -c 1 -W 1 "$gw" >/dev/null 2>&1; continue; fi   # разбудить ARP
+        set -- $nh
+        net=${pfx%/*}; len=${pfx#*/}
+        mask=$(awk -v l="$len" 'BEGIN { m = 0; for (i = 0; i < 32; i++) { m = m * 2 + (i < l) }
+               printf "%d.%d.%d.%d", int(m/16777216)%256, int(m/65536)%256, int(m/256)%256, m%256 }')
+        $SW raw "l3 defip add IP=$net MaSk=$mask Mac=$2 INtf=$3 MOdule=$4 Port=$5 Replace=true" >/dev/null
+    done
+}
+
+case "$1" in
+    status)
+        $SW raw "l3 intf show"; $SW raw "l3 l3table show"; $SW raw "l3 defip show"; exit 0 ;;
+esac
+
+[ -n "$(conf_l3)" ] || { log "в $CONF нет строк l3 — L3 выключен"; exit 0; }
+do_init
+log "инициализация по $CONF выполнена"
+if [ "$1" = once ]; then sync_once; exit 0; fi
+n=0
+while pidof bcm.user >/dev/null 2>&1; do
+    sync_once
+    sleep "$PERIOD"
+    n=$((n + PERIOD)); [ "$n" -ge "$REINIT" ] && { do_init; n=0; }
+done
+log "bcm.user не работает — выхожу"

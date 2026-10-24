@@ -179,4 +179,11 @@ fi
     if [ "$(wc -c < "$BCMLOG")" -gt 1048576 ]; then cp -f "$BCMLOG" "$BCMLOG.1"; : > "$BCMLOG"; fi
   done ) &
 echo "[hotplug] периодический SFPScan (каждые 20с) запущен (pid $!)."
+
+# L3 (2026-10-24): l3d — шлюзы VLAN через KNET + перенос соседей ядра в таблицы чипа (см. l3.conf).
+if [ -r "$BCM/l3.conf" ] && [ -r "$BCM/l3d" ]; then
+  [ -f /tmp/l3d.log ] && [ "$(wc -c < /tmp/l3d.log)" -gt 262144 ] && mv -f /tmp/l3d.log /tmp/l3d.log.1
+  ( sh "$BCM/l3d" >> /tmp/l3d.log 2>&1 ) &
+  echo "[l3] l3d запущен (pid $!), лог /tmp/l3d.log"
+fi
 exit 0
