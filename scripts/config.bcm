@@ -163,34 +163,9 @@ phy_84740_49=1
 phy_84740_53=1
 phy_84740_57=1
 phy_84740_61=1
-# phy_long_xfi (2026-10-16): клетки 25-48 (logical 21-44 = xe20-xe43) — длинный XFI
-# PHY->чип.
-# Драйвер 84740 при смене скорости ставит serdes в CR (SFP+ DAC,
-# RX-эквализация). Без этого 1G->10G на WC6+ = Fault(Local).
-phy_long_xfi_21=1
-phy_long_xfi_22=1
-phy_long_xfi_23=1
-phy_long_xfi_24=1
-phy_long_xfi_25=1
-phy_long_xfi_26=1
-phy_long_xfi_27=1
-phy_long_xfi_28=1
-phy_long_xfi_29=1
-phy_long_xfi_30=1
-phy_long_xfi_31=1
-phy_long_xfi_32=1
-phy_long_xfi_33=1
-phy_long_xfi_34=1
-phy_long_xfi_35=1
-phy_long_xfi_36=1
-phy_long_xfi_37=1
-phy_long_xfi_38=1
-phy_long_xfi_39=1
-phy_long_xfi_40=1
-phy_long_xfi_41=1
-phy_long_xfi_42=1
-phy_long_xfi_43=1
-phy_long_xfi_44=1
+# phy_long_xfi_21..44 УБРАН (24.10): драйвер 84740 ставит serdes в CR при ЛЮБОЙ скорости,
+# и на 1G Warpcore не ловил синхро с PHY (медный SFP: линк есть, данных нет).
+# Хотплаг 1G->10G он не лечил — это делает xfifix в SFPScan.
 # cage1720 (2026-10-16): гипотеза клетки 17-20 = phys 49-52 через PHY 20-23 (MDIO-скан:
 # живые, никому не назначены).
 # Сток тоже держит logical 45-48 -> phys 49-52 и обслуживает все 48 клеток.
