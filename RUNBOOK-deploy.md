@@ -12,7 +12,7 @@ cd /home/alexander_getman/claude-gigamon
 
 | Репо | Коробка | Что это |
 |---|---|---|
-| `bins/bcm.user.current.gz` (md5 `27ec25cf…`) | `/var/bcm/bcm.user` | SDK-апп: SFPScan + LED-fix + fast-presence + xfifix |
+| `bins/bcm.user.current.gz` (md5 `b051ec6c…`) | `/var/bcm/bcm.user` | SDK-апп: SFPScan + LED-fix + fast-presence + xfifix + KNET |
 | `scripts/config.bcm` | `/var/bcm/config.bcm` | soc-свойства: портмап, PHY-адреса, phy_long_xfi |
 | `scripts/rc.soc` | `/var/bcm/rc.soc` | init: БЕЗ `an=on`, SFPScan `xe0-xe47` |
 | `scripts/box-start.sh` | `/var/bcm/box-start.sh` | автозапуск: заморозка pm, BDE, bcm.user, LED, хотплаг-поллер |
@@ -23,7 +23,7 @@ cd /home/alexander_getman/claude-gigamon
 | `scripts/vlan-gen.sh` | `/var/bcm/vlan-gen.sh` | vlan.conf → vlan.soc (diag-команды); box-start зовёт через `sh` |
 | `scripts/sw` | `/var/bcm/sw` | CLI: `sw ports / counters <клетка> / vlan [apply] / sfp [клетка] / raw <cmd>` |
 
-Откат бинаря: `bins/bcm.user.pre-xfifix.gz` (md5 `4040c9a7…`, без хотплаг-фикса).
+Откат бинаря: `bins/bcm.user.pre-xfifix.gz` (md5 `4040c9a7…`, без хотплаг-фикса); без KNET — git-история current (27ec25cf), на коробке `bcm.user.bak-pre-knet`.
 
 ## Карта портов (итог)
 
@@ -76,7 +76,7 @@ ssh $B 'md5sum /var/bcm/bcm.user | cut -c1-8; pidof bcm.user; grep -c BOX_INIT_D
   printf "LED CTRL0=%s CTRL1=%s\n" $(busybox devmem 0xc0001000 32) $(busybox devmem 0xc0002000 32); \
   echo ps > /tmp/bcm.fifo; sleep 2; tail -60 /tmp/bcmrun.log | tr -d "\r" | grep -E "^ +xe[0-9]+ +up"'
 ```
-Ожидаем: md5 `27ec25cf`, `BOX_INIT_DONE`=1, в логе `[led]` и `[hotplug]`, LED CTRL = `0xB3`/`0xF3`
+Ожидаем: md5 `b051ec6c`, `BOX_INIT_DONE`=1, в логе `[led]` и `[hotplug]`, LED CTRL = `0xB3`/`0xF3`
 (бит0=1 — процессор запущен), up только порты с модулями. Глазами: диоды = клетки с линком.
 
 ## VLAN

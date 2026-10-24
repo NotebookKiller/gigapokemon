@@ -36,6 +36,10 @@ ARP на всех хостах (на ARP к шлюзу никто не отве�
    EDITLINE RCPU OOB_RCPU CUSTOMER TEST CHASSIS CINT PTP BFD BHH CES KNET"` (перед линковкой
    `mkdir -p build/knet/linux/user/gto-2_6`). На железе НЕ проверен: с KNET приём пакетов CPU идёт
    через модуль ядра — проверить, что init и L2 не меняются, и откатываться на current при сбое.
+   ✅ 24.10 на железе: init/L2 без изменений (загрузка с первой попытки), стал боевым (bcm.user.current).
+   ✅ KNET в обе стороны: `knetctrl netif create Vlan=1 IFName=vlan1`, `knetctrl filter create DestType=NetIF
+   DestID=1 PRIOrity=0` → TX: ARP из Linux ушёл широковещательно в xe43/xe46; RX: петля `port xe0 lb=mac`
+   вернула наши ARP в vlan1 (3 пакета). Внешнего трафика на DAC нет — та сторона молчит.
    Дальше: `knet netif create` один интерфейс, `knet filter` —
    ARP и кадры на router-MAC → в Linux; поднять IP, проверить ping шлюза из VLAN.
 3. Включить L3 на чипе для двух VLAN, вручную `l3 egress/l3table` для пары хостов — ping между VLAN
