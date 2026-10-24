@@ -25,8 +25,20 @@ log() { echo "[l3d $(date +%T)] $*"; }
 # строки конфига без комментариев: "l3 vid ip/pfx" и "route pfx via gw"
 conf_l3()    { grep -E '^[[:space:]]*l3[[:space:]]' "$CONF" 2>/dev/null | awk '{print $2, $3}'; }
 conf_route() { grep -E '^[[:space:]]*route[[:space:]]' "$CONF" 2>/dev/null | awk '$3 == "via" {print $2, $4}'; }
+# MAC роутера: постоянный (иначе KNET даёт новый при каждой загрузке и у хостов протухает ARP).
+# Из строки `mac xx:..` в l3.conf, иначе локально-администрируемый вариант MAC eth0 (02:...).
+router_mac() {
+    m=$(grep -E '^[[:space:]]*mac[[:space:]]' "$CONF" 2>/dev/null | awk '{print tolower($2)}' | head -1)
+    [ -n "$m" ] && { echo "$m"; return; }
+    echo "02:$(cut -d: -f2- /sys/class/net/eth0/address)"
+}
 
 hexvid() { printf '0x%x' "$1"; }
+
+# L3 host-таблица чипа: "ip mac intf mod port"
+l3_dump() {
+    $SW raw "l3 l3table show" | awk '$3 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ {print $3, tolower($4), $5, $6, $7}'
+}
 
 init_vlan() {   # $1 vid, $2 ip/pfx
     vid=$1; addr=$2; ifn=vlan$vid
@@ -37,12 +49,27 @@ init_vlan() {   # $1 vid, $2 ip/pfx
         $SW raw "knetctrl filter create DestType=NetIF DestID=$id Vlan=$vid PRIOrity=0 DESCription=l3v$vid" >/dev/null
         log "VLAN $vid: netif $ifn (id $id) + фильтр"
     fi
+    rmac=$(router_mac)
+    if [ "$(cat /sys/class/net/$ifn/address)" != "$rmac" ]; then
+        ip link set "$ifn" down; ip link set "$ifn" address "$rmac"
+    fi
     ip addr show dev "$ifn" | grep -q " ${addr%/*}/" || ip addr add "$addr" dev "$ifn"
-    ip link set "$ifn" up
-    mac=$(cat /sys/class/net/$ifn/address)
-    # l3 intf: если уже есть с этим id — команда просто ругнётся, это нормально
-    $SW raw "l3 intf add Vlan=$vid Mac=$mac INtf=$vid" >/dev/null
-    $SW raw "l2 add MACaddress=$mac Vlanid=$(hexvid $vid) PortBitMap=cpu STatic=true L3=true Replace=true" >/dev/null
+    if ! ip link show "$ifn" | grep -q ',UP'; then
+        ip link set "$ifn" up
+        arping -U -c 2 -I "$ifn" "${addr%/*}" >/dev/null 2>&1 &   # gratuitous ARP: хосты обновят кэш
+    fi
+    # L3-интерфейс в чипе: пересоздать только если MAC другой (иначе не дёргаем маршрутизацию)
+    cur=$($SW raw "l3 intf show" | awk -v i="$vid" '$1 == 0 && $2 == i {print tolower($6)}')
+    if [ "$cur" != "$rmac" ]; then
+        if [ -n "$cur" ]; then   # хосты ссылаются на интерфейс — убрать их, sync вернёт с новым MAC
+            for h in $(l3_dump | awk -v v="$vid" '$3 == v {print $1}'); do $SW raw "l3 l3table destroy IP=$h" >/dev/null; done
+            $SW raw "l3 intf destroy INtf=$vid" >/dev/null
+            $SW raw "l2 del MACaddress=$cur Vlanid=$(hexvid $vid)" >/dev/null
+        fi
+        $SW raw "l3 intf add Vlan=$vid Mac=$rmac INtf=$vid" >/dev/null
+        log "VLAN $vid: L3-интерфейс, MAC $rmac"
+    fi
+    $SW raw "l2 add MACaddress=$rmac Vlanid=$(hexvid $vid) PortBitMap=cpu STatic=true L3=true Replace=true" >/dev/null
 }
 
 do_init() {
@@ -63,11 +90,6 @@ l2_dump() {
             if ($i ~ /^port=/)  { p = substr($i, 6); sub(/\/.*/, "", p) }
         }
         if (m != "" && p != "") print tolower(m), v, mod, p }'
-}
-
-# L3 host-таблица чипа: "ip mac intf mod port"
-l3_dump() {
-    $SW raw "l3 l3table show" | awk '$3 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ {print $3, tolower($4), $5, $6, $7}'
 }
 
 sync_once() {
