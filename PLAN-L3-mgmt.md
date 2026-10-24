@@ -40,6 +40,13 @@ ARP на всех хостах (на ARP к шлюзу никто не отве�
    ✅ KNET в обе стороны: `knetctrl netif create Vlan=1 IFName=vlan1`, `knetctrl filter create DestType=NetIF
    DestID=1 PRIOrity=0` → TX: ARP из Linux ушёл широковещательно в xe43/xe46; RX: петля `port xe0 lb=mac`
    вернула наши ARP в vlan1 (3 пакета). Внешнего трафика на DAC нет — та сторона молчит.
+   ✅ 24.10 L3 НА ЖЕЛЕЗЕ (DL380: h10=eno2 в клетке 35, h20=eno3 в клетке 33, медь 1G):
+   - VLAN 10 = клетка 35, VLAN 20 = клетка 33, CPU — член обоих (`vlan add N PortBitMap=cpu`);
+   - KNET: netif vlan10/vlan20 (192.168.10.1/20.1), фильтры по входному порту → ping шлюзов ок;
+   - программно (ip_forward=1) h10↔h20 ок;
+   - АППАРАТНО: `l3 intf add Vlan= Mac=<MAC netif> INtf=`, `l2 add MACaddress=<тот же> Vlanid=0x.. PortBitMap=cpu
+     STatic=true L3=true`, `l3 l3table add IP= Mac= INtf= MOdule=1 Port=<p-32>` → при ip_forward=0 ping
+     h10→h20 10/10, KNET-счётчики не растут, HIT=y. Порты ≥32 — modid 1 (dual-modid): нужен module_64ports=1 как у стока.
    Дальше: `knet netif create` один интерфейс, `knet filter` —
    ARP и кадры на router-MAC → в Linux; поднять IP, проверить ping шлюза из VLAN.
 3. Включить L3 на чипе для двух VLAN, вручную `l3 egress/l3table` для пары хостов — ping между VLAN
