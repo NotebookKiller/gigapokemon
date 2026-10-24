@@ -16,7 +16,7 @@ cd /home/alexander_getman/claude-gigamon
 | `scripts/config.bcm` | `/var/bcm/config.bcm.std` | soc-свойства: портмап, PHY-адреса, `phy_pcs_repeater=1`; QSFP 4×40G |
 | `scripts/config.bcm.breakout` | `/var/bcm/config.bcm.breakout` | то же, но QSFP 4×10G (гидра): головы Q1.1-Q4.4 = xe48-xe63. Активный — копия в `/var/bcm/config.bcm` (сейчас breakout) |
 | `scripts/rc.soc` | `/var/bcm/rc.soc` | init: БЕЗ `an=on`, SFPScan `xe0-xe47`, счётчики без DMA |
-| `scripts/box-start.sh` | `/var/bcm/box-start.sh` | автозапуск: заморозка pm, BDE, bcm.user, LED, хотплаг-поллер |
+| `scripts/box-start.sh` | `/var/bcm/box-start.sh` | автозапуск: заморозка pm, BDE, bcm.user, LED, хотплаг-поллер, очистка L2 по падению линка |
 | `scripts/box-leds.sh` | `/var/bcm/box-leds.sh` | LED-микрокод + карта панели + зеркала (17-20, 33-36) |
 | `scripts/box-boot.sh` | `/var/bcm/boot.sh` | сетевой watchdog (DHCP .133, учётка op) |
 | `scripts/box-fans.sh` | `/var/bcm/fans.sh` | тихие вентиляторы MAX6650 (на коробке та же логика без комментариев) |

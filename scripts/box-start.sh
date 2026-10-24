@@ -161,12 +161,23 @@ if [ -x "$BCM/box-leds.sh" ]; then
   echo "[led] инициализация панельных LED (box-leds.sh + led auto)"
   sh "$BCM/box-leds.sh" >/dev/null 2>&1
   echo "led 0 auto on" > "$FIFO"; echo "led 1 auto on" > "$FIFO"
-  # диоды клеток 33-36 висят на LEDUP1, их порты — на LEDUP0: зеркалим линк раз в секунду
-  ( while sleep 1; do
-      pidof bcm.user >/dev/null 2>&1 || exit 0
-      sh "$BCM/box-leds.sh" mirror >/dev/null 2>&1
-    done ) &
 fi
+
+# L2 при падении линка (24.10): SDK сам не чистит выученные MAC порта, когда линк падает или порт
+# выключают -> после перестановки кабеля хост «висит» на старом порту (и l3d тащит его туда же).
+# Раз в 2с смотрим `ps`; порт, ушедший из up (down / !ena), -> `l2 clear Port=xeN`.
+( prev=""; first=1
+  while sleep 2; do
+    pidof bcm.user >/dev/null 2>&1 && [ -p "$FIFO" ] || exit 0
+    cur=$(sh "$BCM/sw" raw ps 2>/dev/null | awk '$1 ~ /^xe[0-9]+$/ && $2 != "up" {printf "%s ", $1}')
+    if [ -z "$first" ]; then
+      for p in $cur; do
+        case " $prev " in *" $p "*) ;; *) echo "l2 clear Port=$p" > "$FIFO" 2>/dev/null ;; esac
+      done
+    fi
+    prev=$cur; first=
+  done ) &
+echo "[l2] очистка L2 по падению линка запущена (pid $!)."
 
 # ХОТ-ПЛАГ (2026-10-05): SFP втыкают на горячую, а SFPScan отрабатывает лишь раз в rc.soc.
 # SFPScan теперь быстрый (fail-fast presence в phy84740: пустой порт ~мс вместо 1с) и
